@@ -1,0 +1,43 @@
+title = "SecureFlow Custom Gitleaks Rules"
+
+[extend]
+useDefault = true
+
+# ---------------------------------------------------
+# Flask SECRET_KEY detection
+# ---------------------------------------------------
+[[rules]]
+id = "flask-secret-key"
+description = "Detect Flask SECRET_KEY hardcoded in code or env"
+regex = '''(?i)SECRET_KEY\s*[:=]\s*["']?[a-zA-Z0-9_\-!@#$%^&*()+=]{8,}["']?'''
+tags = ["flask", "secret"]
+
+# ---------------------------------------------------
+# Generic DB password in env vars
+# ---------------------------------------------------
+[[rules]]
+id = "db-password"
+description = "Detect database passwords in environment variables"
+regex = '''(?i)(DB_PASSWORD|POSTGRES_PASSWORD|MYSQL_PASSWORD)\s*[:=]\s*["']?.+["']?'''
+tags = ["database", "password"]
+
+# ---------------------------------------------------
+# DB connection strings (URI style)
+# Examples:
+# postgres://user:pass@host:5432/db
+# mysql://user:pass@host/db
+# ---------------------------------------------------
+[[rules]]
+id = "db-connection-string"
+description = "Detect database connection strings with embedded credentials"
+regex = '''(?i)(postgres|mysql|mongodb|redis):\/\/[^:\s]+:[^@\s]+@[^\/\s]+'''
+tags = ["database", "connection-string", "credentials"]
+
+# ---------------------------------------------------
+# Generic secrets in docker-compose / env blocks
+# ---------------------------------------------------
+[[rules]]
+id = "generic-env-secrets"
+description = "Detect secrets in environment variables"
+regex = '''(?i)(SECRET|TOKEN|KEY)\s*[:=]\s*["']?[a-zA-Z0-9_\-]{6,}["']?'''
+tags = ["generic", "secret"]

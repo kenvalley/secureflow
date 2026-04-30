@@ -46,3 +46,15 @@ jobs:
         with:
           name: gitleaks-report
           path: gitleaks-report.json
+
+      - name: Run Gitleaks
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/repo \
+            ghcr.io/gitleaks/gitleaks:latest \
+            detect \
+            --source="/repo" \
+            --log-opts="--all" \
+            --config="/repo/.gitleaks.toml" \
+            --report-format=json \
+            --report-path="/repo/gitleaks-report.json"
