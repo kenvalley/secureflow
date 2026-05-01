@@ -164,12 +164,19 @@ jobs:
       - name: Install Checkov
         run: pip install checkov
 
-      - name: Run Checkov
+      # - name: Run Checkov
+      #   run: |
+      #     checkov -d infra/terraform/ \
+      #       --framework terraform \
+      #       --output json \
+      #       --output-file-path checkov-report.json
+
+      - name: Run Checkov on Terraform
         run: |
           checkov -d infra/terraform/ \
             --framework terraform \
             --output json \
-            --output-file-path checkov-report.json
+            --output-file-path reports/checkov/checkov-report.json
 
       - name: Upload Checkov report
         if: always()
