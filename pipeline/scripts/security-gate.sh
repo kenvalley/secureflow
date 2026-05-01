@@ -7,12 +7,20 @@ echo "🔐 Running Security Gate..."
 # -----------------------------
 # File paths
 # -----------------------------
-GITLEAKS_FILE="reports/gitleaks/gitleaks-report.json"
-SONAR_FILE="reports/sonar/sonar-report.json"
-TRIVY_FILE="reports/trivy/trivy-report.json"
-TRIVY_K8S_FILE="reports/trivy-k8s/trivy-k8s-report.json"
-CHECKOV_FILE="reports/checkov/checkov-report.json"
+# GITLEAKS_FILE="reports/gitleaks/gitleaks-report.json"
 # CHECKOV_FILE="reports/checkov/results_json.json"
+
+# GITLEAKS_FILE="reports/gitleaks-report.json"
+# SONAR_FILE="reports/sonar/sonar-report.json"
+# TRIVY_FILE="reports/trivy/trivy-report.json"
+# TRIVY_K8S_FILE="reports/trivy-k8s/trivy-k8s-report.json"
+# CHECKOV_FILE="reports/checkov/checkov-report.json"
+
+GITLEAKS_FILE="reports/gitleaks-report.json"
+SONAR_FILE="reports/sonar-reports/sonar-report.json"
+TRIVY_FILE="reports/trivy-report/trivy-report.json"
+TRIVY_K8S_FILE="reports/trivy-k8s-report/trivy-k8s-report.json"
+CHECKOV_FILE="reports/checkov-report.json"
 
 # -----------------------------
 # Debug: show what exists
