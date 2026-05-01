@@ -198,3 +198,55 @@ jobs:
           else
             echo "✅ Kubernetes manifests clean"
           fi
+
+
+  checkov-scan:
+    name: Checkov Terraform Scan
+    runs-on: ubuntu-latest
+    needs: trivy-k8s-scan
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install Checkov
+        run: pip install checkov
+
+      - name: Run Checkov on Terraform
+        run: |
+          checkov -d infra/terraform/ \
+            --framework terraform \
+            --output json \
+            --output-file-path checkov-report.json
+
+      - name: Upload Checkov report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checkov-report
+          path: checkov-report.json
+
+      - name: Enforce Checkov gate
+        run: |
+          FAILED=$(jq '.summary.failed' checkov-report.json)
+
+          echo "Failed Terraform checks: $FAILED"
+
+          if [ "$FAILED" -gt 0 ]; then
+            echo "❌ Terraform misconfigurations detected"
+            exit 1
+          else
+            echo "✅ Terraform configuration clean"
+          fi
+
+      - name: Convert Checkov report to CSV
+        run: |
+          jq -r '
+          ["CHECK_ID","RESOURCE","FILE","STATUS"],
+          (.results.failed_checks[] | [
+            .check_id,
+            .resource,
+            .file_path,
+            .status
+          ]) | @csv
+          ' checkov-report.json > checkov-report.csv
