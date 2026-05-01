@@ -170,9 +170,10 @@ jobs:
       #       --framework terraform \
       #       --output json \
       #       --output-file-path checkov-report.json
-            
+                  
       - name: Run Checkov on Terraform
         run: |
+          mkdir -p reports/checkov
           checkov -d infra/terraform/ \
             --framework terraform \
             --output json \
@@ -183,7 +184,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: checkov-report
-          path: checkov-report.json
+          path: reports/checkov/checkov-report.json
 
   # -----------------------------
   # SECURITY GATE
