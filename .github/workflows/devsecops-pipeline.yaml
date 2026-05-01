@@ -1,4 +1,3 @@
-
 name: Secureflow Pipeline
 
 on:
@@ -11,13 +10,8 @@ jobs:
     name: Hello World
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Hello World
-        run: echo "Hello, world!"
-
-    
+      - uses: actions/checkout@v4
+      - run: echo "Hello, world!"
 
   gitleaks-scan:
     name: Gitleaks Secret Scan
@@ -29,25 +23,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Run Gitleaks (full history + JSON report)
-        run: |
-          docker run --rm \
-            -v ${{ github.workspace }}:/repo \
-            ghcr.io/gitleaks/gitleaks:latest \
-            detect \
-            --source="/repo" \
-            --log-opts="--all" \
-            --report-format=json \
-            --report-path="/repo/gitleaks-report.json"
-      
-      - name: Upload Gitleaks report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: gitleaks-report
-          path: gitleaks-report.json
-
-      - name: Run Gitleaks
+      - name: Run Gitleaks (with custom rules)
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/repo \
@@ -58,3 +34,86 @@ jobs:
             --config="/repo/.gitleaks.toml" \
             --report-format=json \
             --report-path="/repo/gitleaks-report.json"
+
+      - name: Upload Gitleaks report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-report
+          path: gitleaks-report.json
+
+  sonarcloud-scan:
+    name: SonarCloud Scan
+    runs-on: ubuntu-latest
+    needs: gitleaks-scan
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Run SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@v2
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }}
+            -Dsonar.organization=${{ secrets.SONAR_ORG }}
+            -Dsonar.host.url=https://sonarcloud.io
+            -Dsonar.sources=.
+
+      # Give SonarCloud time to process results
+      - name: Wait for SonarCloud processing
+        run: sleep 10
+
+      - name: Check CRITICAL/BLOCKER issues
+        run: |
+          curl -s -u "${{ secrets.SONAR_TOKEN }}:" \
+            "https://sonarcloud.io/api/issues/search?componentKeys=${{ secrets.SONAR_PROJECT_KEY }}&severities=CRITICAL,BLOCKER&ps=1" \
+            -o sonar-critical.json
+
+          COUNT=$(jq '.total' sonar-critical.json)
+
+          echo "Critical/Blocker issues: $COUNT"
+
+          if [ "$COUNT" -gt 0 ]; then
+            echo "❌ Failing pipeline due to CRITICAL/BLOCKER issues"
+            exit 1
+          else
+            echo "✅ No CRITICAL/BLOCKER issues"
+          fi
+
+      - name: Export Sonar issues (JSON)
+        run: |
+          curl -s -u "${{ secrets.SONAR_TOKEN }}:" \
+            "https://sonarcloud.io/api/issues/search?componentKeys=${{ secrets.SONAR_PROJECT_KEY }}&ps=500" \
+            -o sonar-report.json
+
+      - name: Convert Sonar JSON to CSV
+        run: |
+          jq -r '
+            ["key","rule","severity","component","line","message"],
+            (.issues[] | [
+              .key,
+              .rule,
+              .severity,
+              .component,
+              (.line // ""),
+              .message
+            ])
+            | @csv
+          ' sonar-report.json > sonar-report.csv
+
+      - name: Upload Sonar reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sonar-reports
+          path: |
+            sonar-report.json
+            sonar-report.csv
