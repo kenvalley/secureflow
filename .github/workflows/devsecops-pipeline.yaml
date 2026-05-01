@@ -152,3 +152,49 @@ jobs:
           else
             echo "✅ No HIGH/CRITICAL vulnerabilities"
           fi
+
+
+  trivy-k8s-scan:
+    name: Trivy Kubernetes Manifests Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install Trivy
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget apt-transport-https gnupg lsb-release
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+          echo deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main | sudo tee /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update
+          sudo apt-get install -y trivy
+
+      - name: Scan Kubernetes manifests
+        run: |
+          trivy config \
+            --severity CRITICAL,HIGH \
+            --format json \
+            -o trivy-k8s-report.json \
+            infra/kubernetes/
+
+      - name: Upload K8s report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-k8s-report
+          path: trivy-k8s-report.json
+
+      - name: Enforce K8s security gate
+        run: |
+          COUNT=$(jq '[.Results[].Misconfigurations[]? | select(.Severity=="CRITICAL" or .Severity=="HIGH")] | length' trivy-k8s-report.json)
+
+          echo "K8s High/Critical misconfigurations: $COUNT"
+
+          if [ "$COUNT" -gt 0 ]; then
+            echo "❌ Failing pipeline due to Kubernetes misconfigurations"
+            exit 1
+          else
+            echo "✅ Kubernetes manifests clean"
+          fi
