@@ -250,3 +250,64 @@ jobs:
             .status
           ]) | @csv
           ' checkov-report.json > checkov-report.csv
+
+
+  security-gate:
+    name: Security Gate
+    runs-on: ubuntu-latest
+
+    needs:
+      - gitleaks-scan
+      - sonarcloud-scan
+      - trivy-scan
+      - trivy-k8s-scan
+      - checkov-scan
+
+    if: always()
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      # -----------------------------
+      # Download artifacts
+      # -----------------------------
+      - uses: actions/download-artifact@v4
+        with:
+          name: gitleaks-report
+          path: reports/gitleaks
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: sonar-reports
+          path: reports/sonar
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: trivy-report
+          path: reports/trivy
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: trivy-k8s-report
+          path: reports/trivy-k8s
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: checkov-report
+          path: reports/checkov
+
+      # -----------------------------
+      # Run security gate script
+      # -----------------------------
+      - name: Run Security Gate
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          chmod +x pipeline/scripts/security-gate-01.sh
+          bash pipeline/scripts/security-gate-01.sh
