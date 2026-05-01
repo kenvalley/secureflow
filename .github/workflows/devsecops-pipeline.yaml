@@ -121,7 +121,7 @@ jobs:
   trivy-scan:
     name: Trivy Image Scan
     runs-on: ubuntu-latest
-    needs: sonarcloud-scan
+    # needs: sonarcloud-scan
 
     steps:
       - name: Install Trivy
