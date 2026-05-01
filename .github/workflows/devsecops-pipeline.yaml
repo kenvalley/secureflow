@@ -121,7 +121,6 @@ jobs:
   trivy-scan:
     name: Trivy Image Scan
     runs-on: ubuntu-latest
-    # needs: sonarcloud-scan
 
     steps:
       - name: Install Trivy
@@ -132,6 +131,14 @@ jobs:
           echo deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main | sudo tee /etc/apt/sources.list.d/trivy.list
           sudo apt-get update
           sudo apt-get install -y trivy
+
+      - name: Run Trivy scan
+        run: |
+          trivy image \
+            --severity CRITICAL,HIGH \
+            --format json \
+            -o trivy-report.json \
+            python:3.9-slim
 
       - name: Enforce Trivy gate
         run: |
