@@ -117,3 +117,31 @@ jobs:
           else
             echo "✅ No CRITICAL/BLOCKER issues"
           fi
+
+  trivy-scan:
+    name: Trivy Image Scan
+    runs-on: ubuntu-latest
+    needs: sonarcloud-scan
+
+    steps:
+      - name: Install Trivy
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget apt-transport-https gnupg lsb-release
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+          echo deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main | sudo tee /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update
+          sudo apt-get install -y trivy
+
+      - name: Enforce Trivy gate
+        run: |
+          COUNT=$(jq '[.Results[].Vulnerabilities[] | select(.Severity=="CRITICAL" or .Severity=="HIGH")] | length' trivy-report.json)
+
+          echo "High/Critical vulnerabilities: $COUNT"
+
+          if [ "$COUNT" -gt 0 ]; then
+            echo "❌ Failing pipeline due to HIGH/CRITICAL vulnerabilities"
+            exit 1
+          else
+            echo "✅ No HIGH/CRITICAL vulnerabilities"
+          fi
