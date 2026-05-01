@@ -45,7 +45,7 @@ jobs:
   sonarcloud-scan:
     name: SonarCloud Scan
     runs-on: ubuntu-latest
-    needs: gitleaks-scan
+    # needs: gitleaks-scan
 
     steps:
       - name: Checkout
