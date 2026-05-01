@@ -71,29 +71,14 @@ jobs:
       - name: Wait for SonarCloud processing
         run: sleep 10
 
-      - name: Check CRITICAL/BLOCKER issues
-        run: |
-          curl -s -u "${{ secrets.SONAR_TOKEN }}:" \
-            "https://sonarcloud.io/api/issues/search?componentKeys=${{ secrets.SONAR_PROJECT_KEY }}&severities=CRITICAL,BLOCKER&ps=1" \
-            -o sonar-critical.json
-
-          COUNT=$(jq '.total' sonar-critical.json)
-
-          echo "Critical/Blocker issues: $COUNT"
-
-          if [ "$COUNT" -gt 0 ]; then
-            echo "❌ Failing pipeline due to CRITICAL/BLOCKER issues"
-            exit 1
-          else
-            echo "✅ No CRITICAL/BLOCKER issues"
-          fi
-
+      # Get ALL issues (for reports)
       - name: Export Sonar issues (JSON)
         run: |
           curl -s -u "${{ secrets.SONAR_TOKEN }}:" \
             "https://sonarcloud.io/api/issues/search?componentKeys=${{ secrets.SONAR_PROJECT_KEY }}&ps=500" \
             -o sonar-report.json
 
+      # Convert to CSV
       - name: Convert Sonar JSON to CSV
         run: |
           jq -r '
@@ -109,6 +94,7 @@ jobs:
             | @csv
           ' sonar-report.json > sonar-report.csv
 
+      # Upload artifacts BEFORE failing
       - name: Upload Sonar reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -117,3 +103,17 @@ jobs:
           path: |
             sonar-report.json
             sonar-report.csv
+
+      # Now check severity (LAST step)
+      - name: Enforce CRITICAL/BLOCKER gate
+        run: |
+          COUNT=$(jq '[.issues[] | select(.severity=="CRITICAL" or .severity=="BLOCKER")] | length' sonar-report.json)
+
+          echo "Critical/Blocker issues: $COUNT"
+
+          if [ "$COUNT" -gt 0 ]; then
+            echo "❌ Failing pipeline due to CRITICAL/BLOCKER issues"
+            exit 1
+          else
+            echo "✅ No CRITICAL/BLOCKER issues"
+          fi
