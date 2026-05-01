@@ -203,7 +203,7 @@ jobs:
   checkov-scan:
     name: Checkov Terraform Scan
     runs-on: ubuntu-latest
-    needs: trivy-k8s-scan
+    # needs: trivy-k8s-scan
 
     steps:
       - name: Checkout repo
