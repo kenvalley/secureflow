@@ -6,15 +6,10 @@ on:
   pull_request:
 
 jobs:
-  hello-world:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: echo "Hello, world!"
 
-  # -----------------------------
-  # GITLEAKS
-  # -----------------------------
+# -----------------------------
+# GITLEAKS
+# -----------------------------
   gitleaks-scan:
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -26,6 +21,7 @@ jobs:
 
       - name: Run Gitleaks
         run: |
+          mkdir -p reports/gitleaks
           docker run --rm \
             -v ${{ github.workspace }}:/repo \
             ghcr.io/gitleaks/gitleaks:latest \
@@ -34,29 +30,23 @@ jobs:
             --log-opts="--all" \
             --config="/repo/.gitleaks.toml" \
             --report-format=json \
-            --report-path="/repo/gitleaks-report.json"
+            --report-path="/repo/reports/gitleaks/gitleaks-report.json"
 
-      - name: Upload Gitleaks report
-        if: always()
+      - name: Upload Gitleaks
         uses: actions/upload-artifact@v4
         with:
           name: gitleaks-report
-          path: gitleaks-report.json
+          path: reports/gitleaks/gitleaks-report.json
 
-  # -----------------------------
-  # SONAR
-  # -----------------------------
+# -----------------------------
+# SONAR
+# -----------------------------
   sonarcloud-scan:
     runs-on: ubuntu-latest
     continue-on-error: true
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Run SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@v2
@@ -66,28 +56,24 @@ jobs:
           args: >
             -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }}
             -Dsonar.organization=${{ secrets.SONAR_ORG }}
-            -Dsonar.host.url=https://sonarcloud.io
             -Dsonar.sources=.
-
-      - name: Wait for processing
-        run: sleep 10
 
       - name: Export Sonar issues
         run: |
+          mkdir -p reports/sonar
           curl -s -u "${{ secrets.SONAR_TOKEN }}:" \
             "https://sonarcloud.io/api/issues/search?componentKeys=${{ secrets.SONAR_PROJECT_KEY }}&ps=500" \
-            -o sonar-report.json
+            -o reports/sonar/sonar-report.json
 
-      - name: Upload Sonar report
-        if: always()
+      - name: Upload Sonar
         uses: actions/upload-artifact@v4
         with:
           name: sonar-reports
-          path: sonar-report.json
+          path: reports/sonar/sonar-report.json
 
-  # -----------------------------
-  # TRIVY IMAGE
-  # -----------------------------
+# -----------------------------
+# TRIVY IMAGE
+# -----------------------------
   trivy-scan:
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -102,24 +88,24 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y trivy
 
-      - name: Run Trivy image scan
+      - name: Run Trivy Image Scan
         run: |
+          mkdir -p reports/trivy
           trivy image \
             --severity CRITICAL,HIGH \
             --format json \
-            -o trivy-report.json \
+            -o reports/trivy/trivy-report.json \
             python:3.9-slim
 
-      - name: Upload Trivy report
-        if: always()
+      - name: Upload Trivy
         uses: actions/upload-artifact@v4
         with:
           name: trivy-report
-          path: trivy-report.json
+          path: reports/trivy/trivy-report.json
 
-  # -----------------------------
-  # TRIVY K8s
-  # -----------------------------
+# -----------------------------
+# TRIVY K8s
+# -----------------------------
   trivy-k8s-scan:
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -130,30 +116,26 @@ jobs:
       - name: Install Trivy
         run: |
           sudo apt-get update
-          sudo apt-get install -y wget apt-transport-https gnupg lsb-release
-          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
-          echo deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main | sudo tee /etc/apt/sources.list.d/trivy.list
-          sudo apt-get update
           sudo apt-get install -y trivy
 
-      - name: Scan Kubernetes manifests
+      - name: Scan K8s
         run: |
+          mkdir -p reports/trivy-k8s
           trivy config \
             --severity CRITICAL,HIGH \
             --format json \
-            -o trivy-k8s-report.json \
+            -o reports/trivy-k8s/trivy-k8s-report.json \
             infra/kubernetes/
 
-      - name: Upload K8s report
-        if: always()
+      - name: Upload K8s
         uses: actions/upload-artifact@v4
         with:
           name: trivy-k8s-report
-          path: trivy-k8s-report.json
+          path: reports/trivy-k8s/trivy-k8s-report.json
 
-  # -----------------------------
-  # CHECKOV
-  # -----------------------------
+# -----------------------------
+# CHECKOV
+# -----------------------------
   checkov-scan:
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -164,14 +146,7 @@ jobs:
       - name: Install Checkov
         run: pip install checkov
 
-      # - name: Run Checkov
-      #   run: |
-      #     checkov -d infra/terraform/ \
-      #       --framework terraform \
-      #       --output json \
-      #       --output-file-path checkov-report.json
-                  
-      - name: Run Checkov on Terraform
+      - name: Run Checkov
         run: |
           mkdir -p reports/checkov
           checkov -d infra/terraform/ \
@@ -179,16 +154,15 @@ jobs:
             --output json \
             --output-file-path reports/checkov/checkov-report.json
 
-      - name: Upload Checkov report
-        if: always()
+      - name: Upload Checkov
         uses: actions/upload-artifact@v4
         with:
           name: checkov-report
           path: reports/checkov/checkov-report.json
 
-  # -----------------------------
-  # SECURITY GATE
-  # -----------------------------
+# -----------------------------
+# SECURITY GATE
+# -----------------------------
   security-gate:
     runs-on: ubuntu-latest
     needs:
@@ -205,35 +179,10 @@ jobs:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Download Gitleaks
+      - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          name: gitleaks-report
-          path: reports/gitleaks
-
-      - name: Download Sonar
-        uses: actions/download-artifact@v4
-        with:
-          name: sonar-reports
-          path: reports/sonar
-
-      - name: Download Trivy
-        uses: actions/download-artifact@v4
-        with:
-          name: trivy-report
-          path: reports/trivy
-
-      - name: Download Trivy K8s
-        uses: actions/download-artifact@v4
-        with:
-          name: trivy-k8s-report
-          path: reports/trivy-k8s
-
-      - name: Download Checkov
-        uses: actions/download-artifact@v4
-        with:
-          name: checkov-report
-          path: reports/checkov
+          path: reports
 
       - name: Run Security Gate
         env:
