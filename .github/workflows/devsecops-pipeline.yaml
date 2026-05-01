@@ -170,7 +170,7 @@ jobs:
       #       --framework terraform \
       #       --output json \
       #       --output-file-path checkov-report.json
-
+            
       - name: Run Checkov on Terraform
         run: |
           checkov -d infra/terraform/ \
