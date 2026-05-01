@@ -1,96 +1,150 @@
+#!/bin/bash
 
-# # ---
+set -euo pipefail
 
-# # ### `pipeline/scripts/security-gate.sh`
+echo "🔐 Running Security Gate..."
 
-# # ### **aggregation + PR comment engine**.
+# -----------------------------
+# File paths
+# -----------------------------
+GITLEAKS_FILE="reports/gitleaks/gitleaks-report.json"
+SONAR_FILE="reports/sonar/sonar-report.json"
+TRIVY_FILE="reports/trivy/trivy-report.json"
+TRIVY_K8S_FILE="reports/trivy-k8s/trivy-k8s-report.json"
+CHECKOV_FILE="reports/checkov/checkov-report.json"
 
-# # It:
-# # - reads all tool outputs
-# # - computes pass/fail
-# # - posts GitHub PR comment (optional)
+# -----------------------------
+# Debug: show what exists
+# -----------------------------
+echo "================ FILE STRUCTURE ================"
+ls -R reports || echo "❌ No reports directory found"
 
-# # ---
-# # ## Script
-# # ```bash id="secgate1"
+echo "================ COUNTING ======================"
 
+# -----------------------------
+# Gitleaks
+# -----------------------------
+if [ -f "$GITLEAKS_FILE" ]; then
+  GITLEAKS_COUNT=$(jq '. | length' "$GITLEAKS_FILE")
+else
+  echo "❌ Missing $GITLEAKS_FILE"
+  exit 1
+fi
+echo "GITLEAKS_COUNT=$GITLEAKS_COUNT"
 
+# -----------------------------
+# Sonar (AppSec - non-blocking)
+# -----------------------------
+if [ -f "$SONAR_FILE" ]; then
+  SONAR_COUNT=$(jq '[.issues[] | select(.severity=="CRITICAL" or .severity=="BLOCKER")] | length' "$SONAR_FILE")
+else
+  echo "❌ Missing $SONAR_FILE"
+  SONAR_COUNT=0
+fi
+echo "SONAR_COUNT=$SONAR_COUNT"
 
-# #!/bin/bash
+# -----------------------------
+# Trivy Image
+# -----------------------------
+if [ -f "$TRIVY_FILE" ]; then
+  TRIVY_COUNT=$(jq '[.Results[].Vulnerabilities[]? | select(.Severity=="CRITICAL" or .Severity=="HIGH")] | length' "$TRIVY_FILE")
+else
+  echo "❌ Missing $TRIVY_FILE"
+  exit 1
+fi
+echo "TRIVY_COUNT=$TRIVY_COUNT"
 
-# set -e
+# -----------------------------
+# Trivy K8s
+# -----------------------------
+if [ -f "$TRIVY_K8S_FILE" ]; then
+  TRIVY_K8S_COUNT=$(jq '[.Results[].Misconfigurations[]? | select(.Severity=="CRITICAL" or .Severity=="HIGH")] | length' "$TRIVY_K8S_FILE")
+else
+  echo "❌ Missing $TRIVY_K8S_FILE"
+  exit 1
+fi
+echo "TRIVY_K8S_COUNT=$TRIVY_K8S_COUNT"
 
-# echo "🔍 Running Security Gate Aggregation..."
+# -----------------------------
+# Checkov
+# -----------------------------
+if [ -f "$CHECKOV_FILE" ]; then
+  CHECKOV_COUNT=$(jq '.summary.failed // 0' "$CHECKOV_FILE")
+else
+  echo "❌ Missing $CHECKOV_FILE"
+  exit 1
+fi
+echo "CHECKOV_COUNT=$CHECKOV_COUNT"
 
-# # -----------------------------
-# # Load results
-# # -----------------------------
+# -----------------------------
+# Aggregate (DevSecOps only)
+# -----------------------------
+DEVSECOPS_TOTAL=$((GITLEAKS_COUNT + TRIVY_COUNT + TRIVY_K8S_COUNT + CHECKOV_COUNT))
 
-# GITLEAKS_FILE="gitleaks-report.json"
-# SONAR_FILE="sonar-report.json"
-# TRIVY_FILE="trivy-report.json"
-# CHECKOV_FILE="checkov-report.json"
+if [ "$DEVSECOPS_TOTAL" -gt 0 ]; then
+  STATUS="❌ FAILED"
+else
+  STATUS="✅ PASSED"
+fi
 
-# # -----------------------------
-# # GITLEAKS (hard fail)
-# # -----------------------------
-# GITLEAKS_COUNT=$(jq '. | length' $GITLEAKS_FILE 2>/dev/null || echo 0)
+echo "================ SUMMARY ======================="
+echo "DevSecOps Total = $DEVSECOPS_TOTAL"
+echo "Status = $STATUS"
 
-# # -----------------------------
-# # SONAR (critical/blocker only)
-# # -----------------------------
-# SONAR_COUNT=$(jq '[.issues[] | select(.severity=="CRITICAL" or .severity=="BLOCKER")] | length' $SONAR_FILE)
+# -----------------------------
+# Build PR comment
+# -----------------------------
+COMMENT=$(cat <<EOF
+## 🔐 Security Gate Report
 
-# # -----------------------------
-# # TRIVY (HIGH + CRITICAL)
-# # -----------------------------
-# TRIVY_COUNT=$(jq '[.Results[].Vulnerabilities[]? | select(.Severity=="CRITICAL" or .Severity=="HIGH")] | length' $TRIVY_FILE)
+### 🔴 DevSecOps-owned (BLOCKING)
+| Scanner | Findings |
+|--------|----------|
+| Gitleaks | $GITLEAKS_COUNT |
+| Trivy (Image) | $TRIVY_COUNT |
+| Trivy (K8s) | $TRIVY_K8S_COUNT |
+| Checkov | $CHECKOV_COUNT |
 
-# # -----------------------------
-# # CHECKOV (failed checks)
-# # -----------------------------
-# CHECKOV_COUNT=$(jq '.summary.failed // 0' $CHECKOV_FILE)
+➡️ **Total Blocking Issues:** $DEVSECOPS_TOTAL
 
-# # -----------------------------
-# # Summary
-# # -----------------------------
-# echo "=========================="
-# echo "SECURITY GATE SUMMARY"
-# echo "=========================="
-# echo "Secrets (Gitleaks): $GITLEAKS_COUNT"
-# echo "SAST (Sonar): $SONAR_COUNT"
-# echo "Container (Trivy): $TRIVY_COUNT"
-# echo "IaC (Checkov): $CHECKOV_COUNT"
-# echo "=========================="
+---
 
-# TOTAL=$((GITLEAKS_COUNT + SONAR_COUNT + TRIVY_COUNT + CHECKOV_COUNT))
+### 🟡 AppSec-owned (NON-BLOCKING)
+| Scanner | Findings |
+|--------|----------|
+| SonarCloud (CRITICAL/BLOCKER) | $SONAR_COUNT |
 
-# # -----------------------------
-# # Decision
-# # -----------------------------
-# if [ "$TOTAL" -gt 0 ]; then
-#   echo "❌ SECURITY GATE FAILED"
-#   exit 1
-# else
-#   echo "✅ SECURITY GATE PASSED"
-# fi
+➡️ These findings are routed to AppSec for review.
 
+📩 Please submit via AppSec Intake (see docs/security-gate-policy.md)
 
+---
 
+### 🚦 Gate Status: $STATUS
+EOF
+)
 
+echo "$COMMENT"
 
+# -----------------------------
+# Post PR comment (only for PR)
+# -----------------------------
+if [ "${GITHUB_EVENT_NAME:-}" = "pull_request" ]; then
+  echo "💬 Posting PR comment..."
 
-# ### Optional: Post a comment on the PR with the results (if running in GitHub Actions)
-# ### This requires the `gh` CLI tool and appropriate permissions.
-# if [ -n "$GITHUB_EVENT_NAME" ]; then
-#   gh pr comment "$PR_NUMBER" -b "
-# ## 🔐 Security Gate Report
+  curl -s -H "Authorization: token $GITHUB_TOKEN" \
+    -H "Content-Type: application/json" \
+    -X POST \
+    -d "$(jq -nc --arg body "$COMMENT" '{body: $body}')" \
+    "https://api.github.com/repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments"
+fi
 
-# - Gitleaks: $GITLEAKS_COUNT
-# - SonarCloud Critical: $SONAR_COUNT
-# - Trivy: $TRIVY_COUNT
-# - Checkov: $CHECKOV_COUNT
-
-# ### Status: $([ "$TOTAL" -gt 0 ] && echo "❌ FAILED" || echo "✅ PASSED")
-# "
-# fi
+# -----------------------------
+# Enforce gate (FINAL AUTHORITY)
+# -----------------------------
+if [ "$DEVSECOPS_TOTAL" -gt 0 ]; then
+  echo "❌ Security gate failed"
+  exit 1
+else
+  echo "✅ Security gate passed"
+fi
