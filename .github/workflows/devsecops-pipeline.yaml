@@ -7,23 +7,24 @@ on:
 
 jobs:
   hello-world:
-    name: Hello World
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - run: echo "Hello, world!"
 
+  # -----------------------------
+  # GITLEAKS
+  # -----------------------------
   gitleaks-scan:
-    name: Gitleaks Secret Scan
     runs-on: ubuntu-latest
+    continue-on-error: true
 
     steps:
-      - name: Checkout full history
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Run Gitleaks (with custom rules)
+      - name: Run Gitleaks
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/repo \
@@ -42,14 +43,15 @@ jobs:
           name: gitleaks-report
           path: gitleaks-report.json
 
+  # -----------------------------
+  # SONAR
+  # -----------------------------
   sonarcloud-scan:
-    name: SonarCloud Scan
     runs-on: ubuntu-latest
-    # needs: gitleaks-scan # Uncomment if you want to run SonarCloud only if Gitleaks passes
+    continue-on-error: true
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -67,60 +69,28 @@ jobs:
             -Dsonar.host.url=https://sonarcloud.io
             -Dsonar.sources=.
 
-      # Give SonarCloud time to process results
-      - name: Wait for SonarCloud processing
+      - name: Wait for processing
         run: sleep 10
 
-      # Get ALL issues (for reports)
-      - name: Export Sonar issues (JSON)
+      - name: Export Sonar issues
         run: |
           curl -s -u "${{ secrets.SONAR_TOKEN }}:" \
             "https://sonarcloud.io/api/issues/search?componentKeys=${{ secrets.SONAR_PROJECT_KEY }}&ps=500" \
             -o sonar-report.json
 
-      # Convert to CSV
-      - name: Convert Sonar JSON to CSV
-        run: |
-          jq -r '
-            ["key","rule","severity","component","line","message"],
-            (.issues[] | [
-              .key,
-              .rule,
-              .severity,
-              .component,
-              (.line // ""),
-              .message
-            ])
-            | @csv
-          ' sonar-report.json > sonar-report.csv
-
-      # Upload artifacts BEFORE failing
-      - name: Upload Sonar reports
+      - name: Upload Sonar report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: sonar-reports
-          path: |
-            sonar-report.json
-            sonar-report.csv
+          path: sonar-report.json
 
-      # Now check severity (LAST step)
-      - name: Enforce CRITICAL/BLOCKER gate
-        run: |
-          COUNT=$(jq '[.issues[] | select(.severity=="CRITICAL" or .severity=="BLOCKER")] | length' sonar-report.json)
-
-          echo "Critical/Blocker issues: $COUNT"
-
-          if [ "$COUNT" -gt 0 ]; then
-            echo "❌ Failing pipeline due to CRITICAL/BLOCKER issues"
-            exit 1
-          else
-            echo "✅ No CRITICAL/BLOCKER issues"
-          fi
-
+  # -----------------------------
+  # TRIVY IMAGE
+  # -----------------------------
   trivy-scan:
-    name: Trivy Image Scan
     runs-on: ubuntu-latest
+    continue-on-error: true
 
     steps:
       - name: Install Trivy
@@ -132,7 +102,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y trivy
 
-      - name: Run Trivy scan
+      - name: Run Trivy image scan
         run: |
           trivy image \
             --severity CRITICAL,HIGH \
@@ -140,27 +110,22 @@ jobs:
             -o trivy-report.json \
             python:3.9-slim
 
-      - name: Enforce Trivy gate
-        run: |
-          COUNT=$(jq '[.Results[].Vulnerabilities[] | select(.Severity=="CRITICAL" or .Severity=="HIGH")] | length' trivy-report.json)
+      - name: Upload Trivy report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-report
+          path: trivy-report.json
 
-          echo "High/Critical vulnerabilities: $COUNT"
-
-          if [ "$COUNT" -gt 0 ]; then
-            echo "❌ Failing pipeline due to HIGH/CRITICAL vulnerabilities"
-            exit 1
-          else
-            echo "✅ No HIGH/CRITICAL vulnerabilities"
-          fi
-
-
+  # -----------------------------
+  # TRIVY K8s
+  # -----------------------------
   trivy-k8s-scan:
-    name: Trivy Kubernetes Manifests Scan
     runs-on: ubuntu-latest
+    continue-on-error: true
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install Trivy
         run: |
@@ -186,33 +151,20 @@ jobs:
           name: trivy-k8s-report
           path: trivy-k8s-report.json
 
-      - name: Enforce K8s security gate
-        run: |
-          COUNT=$(jq '[.Results[].Misconfigurations[]? | select(.Severity=="CRITICAL" or .Severity=="HIGH")] | length' trivy-k8s-report.json)
-
-          echo "K8s High/Critical misconfigurations: $COUNT"
-
-          if [ "$COUNT" -gt 0 ]; then
-            echo "❌ Failing pipeline due to Kubernetes misconfigurations"
-            exit 1
-          else
-            echo "✅ Kubernetes manifests clean"
-          fi
-
-
+  # -----------------------------
+  # CHECKOV
+  # -----------------------------
   checkov-scan:
-    name: Checkov Terraform Scan
     runs-on: ubuntu-latest
-    # needs: trivy-k8s-scan
+    continue-on-error: true
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install Checkov
         run: pip install checkov
 
-      - name: Run Checkov on Terraform
+      - name: Run Checkov
         run: |
           checkov -d infra/terraform/ \
             --framework terraform \
@@ -226,43 +178,17 @@ jobs:
           name: checkov-report
           path: checkov-report.json
 
-      - name: Enforce Checkov gate
-        run: |
-          FAILED=$(jq '.summary.failed' checkov-report.json)
-
-          echo "Failed Terraform checks: $FAILED"
-
-          if [ "$FAILED" -gt 0 ]; then
-            echo "❌ Terraform misconfigurations detected"
-            exit 1
-          else
-            echo "✅ Terraform configuration clean"
-          fi
-
-      - name: Convert Checkov report to CSV
-        run: |
-          jq -r '
-          ["CHECK_ID","RESOURCE","FILE","STATUS"],
-          (.results.failed_checks[] | [
-            .check_id,
-            .resource,
-            .file_path,
-            .status
-          ]) | @csv
-          ' checkov-report.json > checkov-report.csv
-
-
+  # -----------------------------
+  # SECURITY GATE
+  # -----------------------------
   security-gate:
-    name: Security Gate
     runs-on: ubuntu-latest
-
     needs:
       - gitleaks-scan
       - sonarcloud-scan
       - trivy-scan
       - trivy-k8s-scan
       - checkov-scan
-
     if: always()
 
     steps:
@@ -271,37 +197,36 @@ jobs:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      # -----------------------------
-      # Download artifacts
-      # -----------------------------
-      - uses: actions/download-artifact@v4
+      - name: Download Gitleaks
+        uses: actions/download-artifact@v4
         with:
           name: gitleaks-report
           path: reports/gitleaks
 
-      - uses: actions/download-artifact@v4
+      - name: Download Sonar
+        uses: actions/download-artifact@v4
         with:
           name: sonar-reports
           path: reports/sonar
 
-      - uses: actions/download-artifact@v4
+      - name: Download Trivy
+        uses: actions/download-artifact@v4
         with:
           name: trivy-report
           path: reports/trivy
 
-      - uses: actions/download-artifact@v4
+      - name: Download Trivy K8s
+        uses: actions/download-artifact@v4
         with:
           name: trivy-k8s-report
           path: reports/trivy-k8s
 
-      - uses: actions/download-artifact@v4
+      - name: Download Checkov
+        uses: actions/download-artifact@v4
         with:
           name: checkov-report
           path: reports/checkov
 
-      # -----------------------------
-      # Run security gate script
-      # -----------------------------
       - name: Run Security Gate
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -309,5 +234,5 @@ jobs:
           GITHUB_EVENT_NAME: ${{ github.event_name }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          chmod +x pipeline/scripts/security-gate-01.sh
-          bash pipeline/scripts/security-gate-01.sh
+          chmod +x pipeline/scripts/security-gate.sh
+          bash pipeline/scripts/security-gate.sh
