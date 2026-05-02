@@ -198,11 +198,20 @@ jobs:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      # 🔥 This downloads ALL artifacts with correct structure
+      # This downloads ALL artifacts with correct structure
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           path: reports
+
+      # For PRs, we need to fetch labels to determine if it's security-sensitive
+      - name: Fetch PR labels
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          mkdir -p reports
+          curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/labels" \
+            -o reports/pr-labels.json
 
       - name: Run Security Gate
         env:
@@ -213,7 +222,6 @@ jobs:
         run: |
           chmod +x pipeline/scripts/security-gate.sh
           bash pipeline/scripts/security-gate.sh
-
 
 
   security-exception:
@@ -274,3 +282,12 @@ jobs:
             -X POST \
             -d '{"body": "📝 Security exception request recorded. Awaiting AppSec review."}' \
             "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments"
+
+      - name: Add exception label
+        run: |
+          curl -s -X POST \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"labels":["security-exception-requested"]}' \
+            "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/labels"
+
