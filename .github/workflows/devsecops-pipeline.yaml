@@ -4,6 +4,8 @@ on:
   workflow_dispatch:
   push:
   pull_request:
+  issue_comment:
+    types: [created]
 
 jobs:
 
@@ -211,3 +213,64 @@ jobs:
         run: |
           chmod +x pipeline/scripts/security-gate.sh
           bash pipeline/scripts/security-gate.sh
+
+
+
+  security-exception:
+    name: Security Exception Handler
+    runs-on: ubuntu-latest
+
+    # if: github.event_name == 'issue_comment' && contains(github.event.comment.body, '/security-exception')
+    if: ${{ github.event_name == 'issue_comment' && contains(github.event.comment.body, '/security-exception') }}
+
+    steps:
+      - name: Extract exception data
+        id: extract
+        run: |
+          COMMENT="${{ github.event.comment.body }}"
+
+          echo "Comment: $COMMENT"
+
+          REASON=$(echo "$COMMENT" | grep -oP 'reason="\K[^"]+')
+          EXPIRES=$(echo "$COMMENT" | grep -oP 'expires="\K[^"]+')
+
+          echo "reason=$REASON" >> $GITHUB_OUTPUT
+          echo "expires=$EXPIRES" >> $GITHUB_OUTPUT
+
+      - name: Validate input
+        run: |
+          if [ -z "${{ steps.extract.outputs.reason }}" ]; then
+            echo "❌ Missing reason"
+            exit 1
+          fi
+
+          if [ -z "${{ steps.extract.outputs.expires }}" ]; then
+            echo "❌ Missing expiry"
+            exit 1
+          fi
+
+      - name: Create exception record
+        run: |
+          mkdir -p exception
+
+          cat <<EOF > exception/security-exception.json
+          {
+            "requested_by": "${{ github.actor }}",
+            "reason": "${{ steps.extract.outputs.reason }}",
+            "expires": "${{ steps.extract.outputs.expires }}",
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+
+      - name: Upload exception artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-exception
+          path: exception/security-exception.json
+
+      - name: Acknowledge in PR
+        run: |
+          curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -X POST \
+            -d '{"body": "📝 Security exception request recorded. Awaiting AppSec review."}' \
+            "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments"

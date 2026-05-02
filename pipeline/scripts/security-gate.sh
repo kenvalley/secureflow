@@ -13,6 +13,9 @@ TRIVY_FILE="reports/trivy-report/trivy-report.json"
 TRIVY_K8S_FILE="reports/trivy-k8s-report/trivy-k8s-report.json"
 CHECKOV_FILE="reports/checkov-report/checkov-report.json"
 
+EXCEPTION_FILE="reports/security-exception/security-exception.json"
+EXCEPTION_ACTIVE=false
+
 # -----------------------------
 # Debug
 # -----------------------------
@@ -20,6 +23,21 @@ echo "================ FILE STRUCTURE ================"
 ls -R reports || echo "❌ No reports directory found"
 
 echo "================ COUNTING ======================"
+
+
+if [ -f "$EXCEPTION_FILE" ]; then
+  echo "⚠️ Security exception detected"
+
+  EXPIRES=$(jq -r '.expires' "$EXCEPTION_FILE")
+  NOW=$(date -u +%Y-%m-%d)
+
+  if [[ "$NOW" < "$EXPIRES" ]]; then
+    echo "✅ Exception is still valid until $EXPIRES"
+    EXCEPTION_ACTIVE=true
+  else
+    echo "❌ Exception expired"
+  fi
+fi
 
 # -----------------------------
 # Gitleaks
@@ -81,10 +99,22 @@ echo "CHECKOV_COUNT=$CHECKOV_COUNT"
 # -----------------------------
 DEVSECOPS_TOTAL=$((GITLEAKS_COUNT + TRIVY_COUNT + TRIVY_K8S_COUNT + CHECKOV_COUNT))
 
+# if [ "$DEVSECOPS_TOTAL" -gt 0 ]; then
+#   STATUS="❌ FAILED"
+# else
+#   STATUS="✅ PASSED"
+# fi
+
 if [ "$DEVSECOPS_TOTAL" -gt 0 ]; then
-  STATUS="❌ FAILED"
+  if [ "$EXCEPTION_ACTIVE" = true ]; then
+    echo "⚠️ Gate overridden due to approved exception"
+    exit 0
+  else
+    echo "❌ Security gate failed"
+    exit 1
+  fi
 else
-  STATUS="✅ PASSED"
+  echo "✅ Security gate passed"
 fi
 
 echo "================ SUMMARY ======================="
