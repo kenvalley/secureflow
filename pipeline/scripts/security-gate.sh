@@ -5,25 +5,16 @@ set -euo pipefail
 echo "🔐 Running Security Gate..."
 
 # -----------------------------
-# File paths
+# File paths (MATCH ARTIFACT STRUCTURE)
 # -----------------------------
-# GITLEAKS_FILE="reports/gitleaks/gitleaks-report.json"
-# CHECKOV_FILE="reports/checkov/results_json.json"
-
-# GITLEAKS_FILE="reports/gitleaks-report.json"
-# SONAR_FILE="reports/sonar/sonar-report.json"
-# TRIVY_FILE="reports/trivy/trivy-report.json"
-# TRIVY_K8S_FILE="reports/trivy-k8s/trivy-k8s-report.json"
-# CHECKOV_FILE="reports/checkov/checkov-report.json"
-
-GITLEAKS_FILE="reports/gitleaks-report.json"
+GITLEAKS_FILE="reports/gitleaks-report/gitleaks-report.json"
 SONAR_FILE="reports/sonar-reports/sonar-report.json"
 TRIVY_FILE="reports/trivy-report/trivy-report.json"
 TRIVY_K8S_FILE="reports/trivy-k8s-report/trivy-k8s-report.json"
-CHECKOV_FILE="reports/checkov-report.json"
+CHECKOV_FILE="reports/checkov-report/checkov-report.json"
 
 # -----------------------------
-# Debug: show what exists
+# Debug
 # -----------------------------
 echo "================ FILE STRUCTURE ================"
 ls -R reports || echo "❌ No reports directory found"
@@ -42,12 +33,12 @@ fi
 echo "GITLEAKS_COUNT=$GITLEAKS_COUNT"
 
 # -----------------------------
-# Sonar (AppSec - non-blocking)
+# Sonar (non-blocking)
 # -----------------------------
 if [ -f "$SONAR_FILE" ]; then
   SONAR_COUNT=$(jq '[.issues[] | select(.severity=="CRITICAL" or .severity=="BLOCKER")] | length' "$SONAR_FILE")
 else
-  echo "❌ Missing $SONAR_FILE"
+  echo "⚠️ Missing $SONAR_FILE (non-blocking)"
   SONAR_COUNT=0
 fi
 echo "SONAR_COUNT=$SONAR_COUNT"
@@ -86,7 +77,7 @@ fi
 echo "CHECKOV_COUNT=$CHECKOV_COUNT"
 
 # -----------------------------
-# Aggregate (DevSecOps only)
+# Aggregate
 # -----------------------------
 DEVSECOPS_TOTAL=$((GITLEAKS_COUNT + TRIVY_COUNT + TRIVY_K8S_COUNT + CHECKOV_COUNT))
 
@@ -101,7 +92,7 @@ echo "DevSecOps Total = $DEVSECOPS_TOTAL"
 echo "Status = $STATUS"
 
 # -----------------------------
-# Build PR comment
+# PR Comment
 # -----------------------------
 COMMENT=$(cat <<EOF
 ## 🔐 Security Gate Report
@@ -123,9 +114,7 @@ COMMENT=$(cat <<EOF
 |--------|----------|
 | SonarCloud (CRITICAL/BLOCKER) | $SONAR_COUNT |
 
-➡️ These findings are routed to AppSec for review.
-
-📩 Please submit via AppSec Intake (see docs/security-gate-policy.md)
+➡️ Routed to AppSec for review.
 
 ---
 
@@ -136,11 +125,9 @@ EOF
 echo "$COMMENT"
 
 # -----------------------------
-# Post PR comment (only for PR)
+# Post PR comment
 # -----------------------------
 if [ "${GITHUB_EVENT_NAME:-}" = "pull_request" ]; then
-  echo "💬 Posting PR comment..."
-
   curl -s -H "Authorization: token $GITHUB_TOKEN" \
     -H "Content-Type: application/json" \
     -X POST \
@@ -149,7 +136,7 @@ if [ "${GITHUB_EVENT_NAME:-}" = "pull_request" ]; then
 fi
 
 # -----------------------------
-# Enforce gate (FINAL AUTHORITY)
+# FINAL ENFORCEMENT
 # -----------------------------
 if [ "$DEVSECOPS_TOTAL" -gt 0 ]; then
   echo "❌ Security gate failed"

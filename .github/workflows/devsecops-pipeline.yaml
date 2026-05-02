@@ -160,9 +160,10 @@ jobs:
           name: checkov-report
           path: reports/checkov/checkov-report.json
 
-# -----------------------------
-# SECURITY GATE
-# -----------------------------
+          
+  # -----------------------------
+  # SECURITY GATE
+  # -----------------------------
   security-gate:
     runs-on: ubuntu-latest
     needs:
@@ -179,6 +180,7 @@ jobs:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
+      # 🔥 This downloads ALL artifacts with correct structure
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
