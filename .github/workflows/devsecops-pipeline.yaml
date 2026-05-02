@@ -151,14 +151,23 @@ jobs:
       - name: Install Checkov
         run: pip install checkov
 
-      - name: Run Checkov (DO NOT FAIL PIPELINE)
+      # - name: Run Checkov (DO NOT FAIL PIPELINE)
+      #   run: |
+      #     mkdir -p reports/checkov
+      #     checkov -d infra/terraform/ \
+      #       --framework terraform \
+      #       --output json \
+      #       --output-file-path reports/checkov/checkov-report.json || true
+
+      - name: Run Checkov
         run: |
           mkdir -p reports/checkov
-
           checkov -d infra/terraform/ \
             --framework terraform \
             --output json \
-            --output-file-path reports/checkov/checkov-report.json || true
+            --output-file-path reports/checkov \
+            || true
+          mv reports/checkov/results_json.json reports/checkov/checkov-report.json
 
       - name: Upload Checkov
         if: always()
