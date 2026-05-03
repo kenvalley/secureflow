@@ -153,6 +153,7 @@ jobs:
           mkdir -p reports/trivy
           trivy image \
             --severity CRITICAL,HIGH \
+            --ignorefile .trivyignore \
             --format json \
             -o reports/trivy/trivy-auth-service.json \
             secureflow/auth-service:latest
@@ -161,6 +162,7 @@ jobs:
         run: |
           trivy image \
             --severity CRITICAL,HIGH \
+            --ignorefile .trivyignore \
             --format json \
             -o reports/trivy/trivy-transaction-service.json \
             secureflow/transaction-service:latest
@@ -169,6 +171,7 @@ jobs:
         run: |
           trivy image \
             --severity CRITICAL,HIGH \
+            --ignorefile .trivyignore \
             --format json \
             -o reports/trivy/trivy-frontend.json \
             secureflow/frontend:latest

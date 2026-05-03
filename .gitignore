@@ -8,3 +8,16 @@ docker-compose.override.yml
 *.p12
 *.pfx
 secrets/
+
+
+
+# Add to .gitignore
+@"
+
+# Scan reports — never commit, contain secret-shaped strings
+reports/
+evidence/
+trivy-report.json
+gitleaks-report.json
+*.report.json
+"@ | Add-Content .gitignore
