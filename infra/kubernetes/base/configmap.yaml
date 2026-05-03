@@ -1,14 +1,11 @@
+# infra/kubernetes/base/configmap.yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: secureflow-config
   namespace: secureflow
 data:
-  # CK-09 — secrets in plaintext ConfigMap.
-  # Remediation in Step 14: migrate to Vault Agent Injector.
-  JWT_SECRET: "REDACTED"
-  SESSION_SECRET: "REDACTED"
-  AUTH_DB_PASSWORD: "REDACTED"
-  TX_DB_PASSWORD: "REDACTED"
+  # Non-sensitive service URLs only
+  # All secrets migrated to Vault (Phase 1)
   AUTH_SERVICE_URL: "http://auth-service:5001"
   TRANSACTION_SERVICE_URL: "http://transaction-service:5002"
