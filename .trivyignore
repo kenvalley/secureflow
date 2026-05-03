@@ -1,0 +1,17 @@
+# .trivyignore
+# Unfixable OS-level CVEs in python:3.12-slim (debian 13.4)
+# No fix available from Debian upstream as of 2025-05-03
+# These are suppressed pending upstream patch release
+# Review date: 2025-08-03
+
+# libcap2 — TOCTOU race in cap_set_file()
+# Impact: requires local access + specific file operations — not reachable in containerised Flask app
+CVE-2026-4878
+
+# ncurses — buffer overflow
+# Impact: ncurses is not used by the application at runtime
+CVE-2025-69720
+
+# systemd/udev — IPC code execution
+# Impact: systemd is not the init system inside the container; udev is not active
+CVE-2026-29111

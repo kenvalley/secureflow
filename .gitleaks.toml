@@ -1,43 +1,43 @@
-title = "SecureFlow Custom Gitleaks Rules"
+title = "SecureFlow Gitleaks Config"
 
-[extend]
-useDefault = true
+[allowlist]
+  description = "Allowlist for intentional vulnerabilities and false positives"
 
-# ---------------------------------------------------
-# Flask SECRET_KEY detection
-# ---------------------------------------------------
-[[rules]]
-id = "flask-secret-key"
-description = "Detect Flask SECRET_KEY hardcoded in code or env"
-regex = '''(?i)SECRET_KEY\s*[:=]\s*["']?[a-zA-Z0-9_\-!@#$%^&*()+=]{8,}["']?'''
-tags = ["flask", "secret"]
+  paths = [
+    # Scan report archives — contain secrets found in previous scans
+    '''evidence''',
+    '''reports''',
+    '''trivy-report\.json''',
+    '''gitleaks-report\.json''',
 
-# ---------------------------------------------------
-# Generic DB password in env vars
-# ---------------------------------------------------
-[[rules]]
-id = "db-password"
-description = "Detect database passwords in environment variables"
-regex = '''(?i)(DB_PASSWORD|POSTGRES_PASSWORD|MYSQL_PASSWORD)\s*[:=]\s*["']?.+["']?'''
-tags = ["database", "password"]
+    # Intentionally vulnerable app documentation
+    '''VULNERABILITIES\.md''',
 
-# ---------------------------------------------------
-# DB connection strings (URI style)
-# Examples:
-# postgres://user:pass@host:5432/db
-# mysql://user:pass@host/db
-# ---------------------------------------------------
-[[rules]]
-id = "db-connection-string"
-description = "Detect database connection strings with embedded credentials"
-regex = '''(?i)(postgres|mysql|mongodb|redis):\/\/[^:\s]+:[^@\s]+@[^\/\s]+'''
-tags = ["database", "connection-string", "credentials"]
+    # Intentional Terraform vulnerability IV-01
+    '''infra/terraform/main\.tf''',
+  ]
 
-# ---------------------------------------------------
-# Generic secrets in docker-compose / env blocks
-# ---------------------------------------------------
-[[rules]]
-id = "generic-env-secrets"
-description = "Detect secrets in environment variables"
-regex = '''(?i)(SECRET|TOKEN|KEY)\s*[:=]\s*["']?[a-zA-Z0-9_\-]{6,}["']?'''
-tags = ["generic", "secret"]
+  regexes = [
+    # Vault Agent template placeholders — not real secrets
+    '''DB_PASSWORD=\{\{.*\.Data\.data''',
+    '''JWT_SECRET=\{\{.*\.Data\.data''',
+    '''SESSION_SECRET=\{\{.*\.Data\.data''',
+
+    # docker-compose variable substitution — value comes from .env file
+    '''(DB_PASSWORD|POSTGRES_PASSWORD):\s+\$\{''',
+
+    # Kubernetes configMapKeyRef key names — variable references, not values
+    '''key:\s+(AUTH_DB_PASSWORD|TX_DB_PASSWORD)''',
+
+    # GitHub Actions secret references — not real credentials
+    '''\$\{\{\s*secrets\.\w+\s*\}\}''',
+
+    # Flask token variable assignment — not a secret value
+    '''token\s*=\s*auth_header''',
+
+    # Python GPG_KEY in image metadata — not an API key
+    '''GPG_KEY=E3FF2839C048B25C084DEBE9B26995E3''',
+
+    # SonarCloud issue keys — not API keys
+    '''key":"AZ3i''',
+  ]

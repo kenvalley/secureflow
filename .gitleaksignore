@@ -1,0 +1,4 @@
+evidence/
+reports/
+trivy-report.json
+gitleaks-report.json
