@@ -1,3 +1,5 @@
+#### New version of frontend.yaml with Vault Agent Injector annotations and templates
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -12,20 +14,45 @@ spec:
     metadata:
       labels:
         svc: frontend
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "frontend-role"
+        vault.hashicorp.com/agent-inject-secret-config: "secureflow/data/frontend"
+        vault.hashicorp.com/agent-inject-template-config: |
+          {{- with secret "secureflow/data/frontend" -}}
+          SESSION_SECRET={{ .Data.data.session_secret }}
+          AUTH_SERVICE_URL={{ .Data.data.auth_service_url }}
+          TRANSACTION_SERVICE_URL={{ .Data.data.transaction_service_url }}
+          {{- end }}
+
     spec:
+      serviceAccountName: frontend-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
       containers:
         - name: frontend
-          image: secureflow/frontend:latest   # CK-06
+          image: secureflow/frontend:latest
+          imagePullPolicy: Never
           ports:
             - containerPort: 5000
-          envFrom:
-            - configMapRef:
-                name: secureflow-config
           securityContext:
-            privileged: true                # CK-04
-            allowPrivilegeEscalation: true  # CK-04
-            runAsUser: 0                    # CK-02
-          # CK-05 — no resources.
+            privileged: false
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "128Mi"
+              cpu: "250m"
+              
 ---
 apiVersion: v1
 kind: Service
@@ -40,3 +67,58 @@ spec:
     - port: 5000
       targetPort: 5000
       nodePort: 30080
+
+
+
+
+
+
+
+
+
+
+#### Old version of frontend.yaml without Vault Agent Injector annotations and templates
+
+
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: frontend
+#   namespace: secureflow
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels:
+#       svc: frontend
+#   template:
+#     metadata:
+#       labels:
+#         svc: frontend
+#     spec:
+#       containers:
+#         - name: frontend
+#           image: secureflow/frontend:latest   # CK-06
+#           ports:
+#             - containerPort: 5000
+#           envFrom:
+#             - configMapRef:
+#                 name: secureflow-config
+#           securityContext:
+#             privileged: true                # CK-04
+#             allowPrivilegeEscalation: true  # CK-04
+#             runAsUser: 0                    # CK-02
+#           # CK-05 — no resources.
+# ---
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: frontend
+#   namespace: secureflow
+# spec:
+#   type: NodePort
+#   selector:
+#     svc: frontend
+#   ports:
+#     - port: 5000
+#       targetPort: 5000
+#       nodePort: 30080

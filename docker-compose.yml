@@ -11,11 +11,11 @@ version: "3.8"
 
 services:
   auth-db:
-    image: postgres:14
+    image: postgres:14@sha256:bbb8851608e3ff4901156bf6a4bf90735a9d44ae014c03811bfdb2f9c354b18b
     environment:
       POSTGRES_DB: authdb
       POSTGRES_USER: authuser
-      POSTGRES_PASSWORD: REDACTED
+      POSTGRES_PASSWORD: ${AUTH_DB_PASSWORD}    # ← from env file
     ports:
       - "5432:5432"          # IV-02 — exposed on host.
     volumes:
@@ -23,11 +23,11 @@ services:
       - auth-db-data:/var/lib/postgresql/data
 
   transaction-db:
-    image: postgres:14
+    image: postgres:14@sha256:bbb8851608e3ff4901156bf6a4bf90735a9d44ae014c03811bfdb2f9c354b18b
     environment:
       POSTGRES_DB: transactiondb
       POSTGRES_USER: txuser
-      POSTGRES_PASSWORD: REDACTED
+      POSTGRES_PASSWORD: ${TX_DB_PASSWORD}      # ← from env file
     ports:
       - "5433:5432"          # IV-02 — exposed on host.
     volumes:
@@ -41,8 +41,8 @@ services:
       DB_PORT: 5432
       DB_NAME: authdb
       DB_USER: authuser
-      DB_PASSWORD: REDACTED        # IV-01, IV-03
-      JWT_SECRET: REDACTED # AV-07, IV-03
+      DB_PASSWORD: ${AUTH_DB_PASSWORD}    # ← from env file
+      JWT_SECRET: ${JWT_SECRET}           # ← from env file
     ports:
       - "5001:5001"
     depends_on:
@@ -55,7 +55,7 @@ services:
       DB_PORT: 5432
       DB_NAME: transactiondb
       DB_USER: txuser
-      DB_PASSWORD: REDACTED           # IV-01, IV-03
+      DB_PASSWORD: ${TX_DB_PASSWORD}      # ← from env file
       AUTH_SERVICE_URL: http://auth-service:5001
     ports:
       - "5002:5002"
@@ -66,7 +66,7 @@ services:
   frontend:
     build: ./services/frontend
     environment:
-      SESSION_SECRET: REDACTED           # FV-03, IV-03
+      SESSION_SECRET: ${SESSION_SECRET}         # ← from env file
       AUTH_SERVICE_URL: http://auth-service:5001
       TRANSACTION_SERVICE_URL: http://transaction-service:5002
     ports:

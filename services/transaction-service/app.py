@@ -7,6 +7,10 @@ import requests
 import psycopg2
 from flask import Flask, request, jsonify
 
+# Vault integration — load secrets from Vault Agent Injector file into environment variables.
+from vault_config import load_vault_secrets
+load_vault_secrets()   # ← must run before DB_CONFIG or SECRET_KEY is read
+
 app = Flask(__name__)
 
 AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://auth-service:5001")

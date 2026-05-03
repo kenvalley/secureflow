@@ -1,0 +1,44 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vault-agent-auth-service-template
+  namespace: secureflow
+data:
+  config.tpl: |
+    {{- with secret "secureflow/data/auth-service" -}}
+    DB_HOST={{ .Data.data.db_host }}
+    DB_PORT={{ .Data.data.db_port }}
+    DB_NAME={{ .Data.data.db_name }}
+    DB_USER={{ .Data.data.db_user }}
+    DB_PASSWORD={{ .Data.data.db_password }}
+    JWT_SECRET={{ .Data.data.jwt_secret }}
+    {{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vault-agent-transaction-service-template
+  namespace: secureflow
+data:
+  config.tpl: |
+    {{- with secret "secureflow/data/transaction-service" -}}
+    DB_HOST={{ .Data.data.db_host }}
+    DB_PORT={{ .Data.data.db_port }}
+    DB_NAME={{ .Data.data.db_name }}
+    DB_USER={{ .Data.data.db_user }}
+    DB_PASSWORD={{ .Data.data.db_password }}
+    AUTH_SERVICE_URL={{ .Data.data.auth_service_url }}
+    {{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vault-agent-frontend-template
+  namespace: secureflow
+data:
+  config.tpl: |
+    {{- with secret "secureflow/data/frontend" -}}
+    SESSION_SECRET={{ .Data.data.session_secret }}
+    AUTH_SERVICE_URL={{ .Data.data.auth_service_url }}
+    TRANSACTION_SERVICE_URL={{ .Data.data.transaction_service_url }}
+    {{- end }}

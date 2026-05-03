@@ -1,1 +1,10 @@
+.env
 .venv
+*.env
+docker-compose.env # 
+docker-compose.override.yml
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/

@@ -6,6 +6,11 @@ import os
 import requests
 from flask import Flask, request, session, redirect, url_for, render_template_string
 
+# Vault integration — load secrets from Vault Agent Injector file into environment variables.
+from vault_config import load_vault_secrets
+load_vault_secrets()   # ← must run before DB_CONFIG or SECRET_KEY is read
+
+
 # FV-03 — Jinja2 autoescape disabled, enabling XSS.
 app = Flask(__name__)
 app.jinja_env.autoescape = False

@@ -9,6 +9,11 @@ import jwt
 import psycopg2
 from flask import Flask, request, jsonify
 
+# Vault integration — load secrets from Vault Agent Injector file into environment variables.
+from vault_config import load_vault_secrets
+load_vault_secrets()   # ← must run before DB_CONFIG or SECRET_KEY is read
+
+
 app = Flask(__name__)
 
 # AV-07 — Hardcoded JWT Secret. Matches the value committed in docker-compose.yml and .env.

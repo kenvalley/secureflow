@@ -1,3 +1,5 @@
+# New version of transaction-service.yaml with Vault Agent Injector annotations and env vars
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -12,32 +14,47 @@ spec:
     metadata:
       labels:
         svc: transaction-service
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "transaction-service-role"
+        vault.hashicorp.com/agent-inject-secret-config: "secureflow/data/transaction-service"
+        vault.hashicorp.com/agent-inject-template-config: |
+          {{- with secret "secureflow/data/transaction-service" -}}
+          DB_HOST={{ .Data.data.db_host }}
+          DB_PORT={{ .Data.data.db_port }}
+          DB_NAME={{ .Data.data.db_name }}
+          DB_USER={{ .Data.data.db_user }}
+          DB_PASSWORD={{ .Data.data.db_password }}
+          AUTH_SERVICE_URL={{ .Data.data.auth_service_url }}
+          {{- end }}
+
     spec:
+      serviceAccountName: transaction-service-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
       containers:
         - name: transaction-service
-          image: secureflow/transaction-service:latest   # CK-06
+          image: secureflow/transaction-service:latest
+          imagePullPolicy: Never
           ports:
             - containerPort: 5002
-          envFrom:
-            - configMapRef:
-                name: secureflow-config
-          env:
-            - name: DB_HOST
-              value: transaction-db
-            - name: DB_NAME
-              value: transactiondb
-            - name: DB_USER
-              value: txuser
-            - name: DB_PASSWORD
-              valueFrom:
-                configMapKeyRef:
-                  name: secureflow-config
-                  key: TX_DB_PASSWORD
           securityContext:
-            privileged: true                # CK-04
-            allowPrivilegeEscalation: true  # CK-04
-            runAsUser: 0                    # CK-02
-          # CK-05 — no resources.
+            privileged: false
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "128Mi"
+              cpu: "250m"
 ---
 apiVersion: v1
 kind: Service
@@ -50,3 +67,70 @@ spec:
   ports:
     - port: 5002
       targetPort: 5002
+
+
+
+
+
+
+
+
+
+
+
+
+
+#### Old version of transaction-service.yaml without Vault Agent Injector annotations and env vars
+
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: transaction-service
+#   namespace: secureflow
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels:
+#       svc: transaction-service
+#   template:
+#     metadata:
+#       labels:
+#         svc: transaction-service
+#     spec:
+#       containers:
+#         - name: transaction-service
+#           image: secureflow/transaction-service:latest   # CK-06
+#           ports:
+#             - containerPort: 5002
+#           envFrom:
+#             - configMapRef:
+#                 name: secureflow-config
+#           env:
+#             - name: DB_HOST
+#               value: transaction-db
+#             - name: DB_NAME
+#               value: transactiondb
+#             - name: DB_USER
+#               value: txuser
+#             - name: DB_PASSWORD
+#               valueFrom:
+#                 configMapKeyRef:
+#                   name: secureflow-config
+#                   key: TX_DB_PASSWORD
+#           securityContext:
+#             privileged: true                # CK-04
+#             allowPrivilegeEscalation: true  # CK-04
+#             runAsUser: 0                    # CK-02
+#           # CK-05 — no resources.
+# ---
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: transaction-service
+#   namespace: secureflow
+# spec:
+#   selector:
+#     svc: transaction-service
+#   ports:
+#     - port: 5002
+#       targetPort: 5002

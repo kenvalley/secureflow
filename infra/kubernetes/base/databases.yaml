@@ -15,7 +15,8 @@ spec:
     spec:
       containers:
         - name: postgres
-          image: postgres:14    # CK-03 — no digest pinning.
+          # image: postgres:14    # CK-03 — no digest pinning.
+          image: postgres:14@sha256:bbb8851608e3ff4901156bf6a4bf90735a9d44ae014c03811bfdb2f9c354b18b  # CK-03 — with digest pinning.
           env:
             - name: POSTGRES_DB
               value: authdb
@@ -58,7 +59,8 @@ spec:
     spec:
       containers:
         - name: postgres
-          image: postgres:14
+          # image: postgres:14
+          image: postgres:14@sha256:bbb8851608e3ff4901156bf6a4bf90735a9d44ae014c03811bfdb2f9c354b18b  # CK-03 — with digest pinning.
           env:
             - name: POSTGRES_DB
               value: transactiondb
