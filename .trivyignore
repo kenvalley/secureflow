@@ -15,3 +15,11 @@ CVE-2025-69720
 # systemd/udev — IPC code execution
 # Impact: systemd is not the init system inside the container; udev is not active
 CVE-2026-29111
+
+
+
+# --- K8s config suppressions ---
+# KSV-0014: readOnlyRootFilesystem for Postgres
+# Postgres requires write access to disk for WAL files, temp files, and Unix sockets
+# Accepted exception for database containers — cannot be remediated without breaking Postgres
+KSV-0014

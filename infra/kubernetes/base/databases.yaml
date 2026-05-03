@@ -13,10 +13,15 @@ spec:
       labels:
         svc: auth-db
     spec:
+      # Pod-level security context
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999        # postgres official image uses uid 999
+        runAsGroup: 999
+        fsGroup: 999
       containers:
         - name: postgres
-          # image: postgres:14    # CK-03 — no digest pinning.
-          image: postgres:14@sha256:bbb8851608e3ff4901156bf6a4bf90735a9d44ae014c03811bfdb2f9c354b18b  # CK-03 — with digest pinning.
+          image: postgres:14@sha256:bbb8851608e3ff4901156bf6a4bf90735a9d44ae014c03811bfdb2f9c354b18b
           env:
             - name: POSTGRES_DB
               value: authdb
@@ -29,6 +34,20 @@ spec:
                   key: AUTH_DB_PASSWORD
           ports:
             - containerPort: 5432
+          # Container-level security context
+          securityContext:
+            readOnlyRootFilesystem: false   # postgres needs to write to disk
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "250m"
 ---
 apiVersion: v1
 kind: Service
@@ -57,10 +76,14 @@ spec:
       labels:
         svc: transaction-db
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
       containers:
         - name: postgres
-          # image: postgres:14
-          image: postgres:14@sha256:bbb8851608e3ff4901156bf6a4bf90735a9d44ae014c03811bfdb2f9c354b18b  # CK-03 — with digest pinning.
+          image: postgres:14@sha256:bbb8851608e3ff4901156bf6a4bf90735a9d44ae014c03811bfdb2f9c354b18b
           env:
             - name: POSTGRES_DB
               value: transactiondb
@@ -73,6 +96,19 @@ spec:
                   key: TX_DB_PASSWORD
           ports:
             - containerPort: 5432
+          securityContext:
+            readOnlyRootFilesystem: false   # postgres needs to write to disk
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "250m"
 ---
 apiVersion: v1
 kind: Service
@@ -85,3 +121,92 @@ spec:
   ports:
     - port: 5432
       targetPort: 5432
+
+
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: auth-db
+#   namespace: secureflow
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels:
+#       svc: auth-db
+#   template:
+#     metadata:
+#       labels:
+#         svc: auth-db
+#     spec:
+#       containers:
+#         - name: postgres
+#           # image: postgres:14    # CK-03 — no digest pinning.
+#           image: postgres:14@sha256:bbb8851608e3ff4901156bf6a4bf90735a9d44ae014c03811bfdb2f9c354b18b  # CK-03 — with digest pinning.
+#           env:
+#             - name: POSTGRES_DB
+#               value: authdb
+#             - name: POSTGRES_USER
+#               value: authuser
+#             - name: POSTGRES_PASSWORD
+#               valueFrom:
+#                 configMapKeyRef:
+#                   name: secureflow-config
+#                   key: AUTH_DB_PASSWORD
+#           ports:
+#             - containerPort: 5432
+# ---
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: auth-db
+#   namespace: secureflow
+# spec:
+#   selector:
+#     svc: auth-db
+#   ports:
+#     - port: 5432
+#       targetPort: 5432
+# ---
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: transaction-db
+#   namespace: secureflow
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels:
+#       svc: transaction-db
+#   template:
+#     metadata:
+#       labels:
+#         svc: transaction-db
+#     spec:
+#       containers:
+#         - name: postgres
+#           # image: postgres:14
+#           image: postgres:14@sha256:bbb8851608e3ff4901156bf6a4bf90735a9d44ae014c03811bfdb2f9c354b18b  # CK-03 — with digest pinning.
+#           env:
+#             - name: POSTGRES_DB
+#               value: transactiondb
+#             - name: POSTGRES_USER
+#               value: txuser
+#             - name: POSTGRES_PASSWORD
+#               valueFrom:
+#                 configMapKeyRef:
+#                   name: secureflow-config
+#                   key: TX_DB_PASSWORD
+#           ports:
+#             - containerPort: 5432
+# ---
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: transaction-db
+#   namespace: secureflow
+# spec:
+#   selector:
+#     svc: transaction-db
+#   ports:
+#     - port: 5432
+#       targetPort: 5432
