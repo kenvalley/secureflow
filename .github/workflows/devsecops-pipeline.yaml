@@ -227,8 +227,7 @@ jobs:
 
 
 
-
-  # -----------------------------
+# -----------------------------
   # CHECKOV
   # -----------------------------
   checkov-scan:
@@ -238,23 +237,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Create reports directory
+        run: mkdir -p reports/checkov
+
       - name: Run Checkov
         uses: bridgecrewio/checkov-action@v12
         with:
           directory: infra/terraform/
           framework: terraform
           output_format: json
-          output_file_path: reports/checkov/
+          output_file_path: reports/checkov/checkov-report.json
           soft_fail: true
           check: CRITICAL
 
-      - name: Rename report to match expected filename
+      - name: Fix file permissions
         if: always()
-        run: |
-          mkdir -p reports/checkov
-          if [ -f reports/checkov/results_json.json ]; then
-            mv reports/checkov/results_json.json reports/checkov/checkov-report.json
-          fi
+        run: sudo chmod 644 reports/checkov/checkov-report.json || true
 
       - name: Upload Checkov
         if: always()
@@ -262,8 +260,7 @@ jobs:
         with:
           name: checkov-report
           path: reports/checkov/checkov-report.json
-
-        
+          
 
   # -----------------------------
   # SECURITY GATE
