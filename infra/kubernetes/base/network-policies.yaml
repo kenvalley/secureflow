@@ -1,0 +1,234 @@
+# -------------------------------------------------------------
+# Default deny — block ALL ingress and egress for every pod
+# in the secureflow namespace unless explicitly allowed below
+# -------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: secureflow
+  labels:
+    app: secureflow
+    team: devsecops
+spec:
+  podSelector: {}        # applies to ALL pods in namespace
+  policyTypes:
+    - Ingress
+    - Egress
+---
+# -------------------------------------------------------------
+# frontend — may call auth-service:5001 and transaction-service:5002
+# Accepts inbound traffic on port 5000 from outside (NodePort)
+# -------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: frontend-policy
+  namespace: secureflow
+  labels:
+    app: secureflow
+    team: devsecops
+spec:
+  podSelector:
+    matchLabels:
+      svc: frontend
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - ports:
+        - port: 5000
+  egress:
+    # Allow calls to auth-service
+    - to:
+        - podSelector:
+            matchLabels:
+              svc: auth-service
+      ports:
+        - port: 5001
+    # Allow calls to transaction-service
+    - to:
+        - podSelector:
+            matchLabels:
+              svc: transaction-service
+      ports:
+        - port: 5002
+    # Allow DNS resolution
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+---
+# -------------------------------------------------------------
+# auth-service — accepts calls from frontend only on port 5001
+# May call auth-db:5432 only
+# -------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: auth-service-policy
+  namespace: secureflow
+  labels:
+    app: secureflow
+    team: devsecops
+spec:
+  podSelector:
+    matchLabels:
+      svc: auth-service
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              svc: frontend
+      ports:
+        - port: 5001
+    # Allow vault agent sidecar communication
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: vault
+  egress:
+    # Allow calls to auth-db only
+    - to:
+        - podSelector:
+            matchLabels:
+              svc: auth-db
+      ports:
+        - port: 5432
+    # Allow DNS
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # Allow Vault communication
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: vault
+      ports:
+        - port: 8200
+---
+# -------------------------------------------------------------
+# transaction-service — accepts calls from frontend only on 5002
+# May call transaction-db:5432 and auth-service:5001 (token verify)
+# -------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: transaction-service-policy
+  namespace: secureflow
+  labels:
+    app: secureflow
+    team: devsecops
+spec:
+  podSelector:
+    matchLabels:
+      svc: transaction-service
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              svc: frontend
+      ports:
+        - port: 5002
+  egress:
+    # Allow calls to transaction-db
+    - to:
+        - podSelector:
+            matchLabels:
+              svc: transaction-db
+      ports:
+        - port: 5432
+    # Allow token verification calls to auth-service
+    - to:
+        - podSelector:
+            matchLabels:
+              svc: auth-service
+      ports:
+        - port: 5001
+    # Allow DNS
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # Allow Vault communication
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: vault
+      ports:
+        - port: 8200
+---
+# -------------------------------------------------------------
+# auth-db — accepts connections from auth-service ONLY
+# -------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: auth-db-policy
+  namespace: secureflow
+  labels:
+    app: secureflow
+    team: devsecops
+spec:
+  podSelector:
+    matchLabels:
+      svc: auth-db
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              svc: auth-service
+      ports:
+        - port: 5432
+  egress:
+    # Allow DNS only
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+---
+# -------------------------------------------------------------
+# transaction-db — accepts connections from transaction-service ONLY
+# -------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: transaction-db-policy
+  namespace: secureflow
+  labels:
+    app: secureflow
+    team: devsecops
+spec:
+  podSelector:
+    matchLabels:
+      svc: transaction-db
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              svc: transaction-service
+      ports:
+        - port: 5432
+  egress:
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP

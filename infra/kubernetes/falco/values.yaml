@@ -1,0 +1,41 @@
+# Falco Helm values for SecureFlow on WSL2 kind cluster
+
+# Use modern eBPF driver — required for WSL2
+driver:
+  kind: modern_ebpf       # works on WSL2 kernel 5.8+, no kernel module needed
+
+# Enable Falco
+falco:
+  grpc:
+    enabled: false  # Disable gRPC output to avoid issues with WSL2 and simplify setup
+  # grpcOutput:
+  #   enabled: true
+
+  # Log to stdout so we can capture with kubectl logs
+  jsonOutput: true
+  logLevel: info
+  # jsonIncludeOutputProperty: true
+
+  # Rule files to load
+  rulesFile:
+    - /etc/falco/falco_rules.yaml
+    - /etc/falco/falco_rules.local.yaml
+    - /etc/falco/rules.d
+
+# Resource limits
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# Tolerations — allow Falco to run on all nodes including control-plane
+tolerations:
+  - effect: NoSchedule
+    key: node-role.kubernetes.io/control-plane
+
+# Run as DaemonSet so every node is monitored
+controller:
+  kind: daemonset

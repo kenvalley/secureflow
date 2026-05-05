@@ -1,0 +1,53 @@
+# infra/kubernetes/overlays/dev/kustomization.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: secureflow
+
+resources:
+  - ../../base
+
+labels:
+  - pairs:
+      app: secureflow
+      team: devsecops
+      environment: dev
+    includeSelectors: false
+    includeTemplates: true
+
+# Keep original image names — kind already has these loaded
+# Just record the digest for traceability
+# digest pinning via localhost:5001 registry doesn't work with kind's network
+# Production equivalent: use ECR/GCR image references with digest pinning
+images:
+  - name: secureflow/auth-service
+    newTag: latest
+
+  - name: secureflow/transaction-service
+    newTag: latest
+
+  - name: secureflow/frontend
+    newTag: latest
+
+patches:
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never
+    target:
+      kind: Deployment
+      name: auth-service
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never
+    target:
+      kind: Deployment
+      name: transaction-service
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never
+    target:
+      kind: Deployment
+      name: frontend

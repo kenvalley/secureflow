@@ -1,0 +1,262 @@
+# SecureFlow custom Falco rules
+# Designed to detect the intentional vulnerabilities and attack patterns
+# present in the SecureFlow deliberately vulnerable application
+
+
+- rule: Shell Spawned in SecureFlow Container
+  desc: >
+    A shell process was spawned inside a SecureFlow container.
+    This may indicate an attacker using kubectl exec or a
+    reverse shell from an exploited vulnerability.
+  condition: >
+    spawned_process
+    and container
+    and container.image.repository contains "secureflow"
+    and (proc.name in (shell_binaries)
+         or proc.name = "id"
+         or proc.name = "whoami"
+         or proc.name = "sh"
+         or proc.name = "bash"
+         or proc.name = "dash")
+  output: >
+    Shell spawned in SecureFlow container
+    (user=%user.name user_uid=%user.uid
+    container=%container.name
+    image=%container.image.repository
+    shell=%proc.name parent=%proc.pname
+    cmdline=%proc.cmdline)
+  priority: WARNING
+  tags: [secureflow, shell, T1059]
+
+- rule: Sensitive File Read in SecureFlow Container
+  desc: >
+    A process inside a SecureFlow container attempted to read
+    a sensitive system file such as /etc/shadow or /etc/passwd.
+  condition: >
+    open_read
+    and container
+    and container.image.repository contains "secureflow"
+    and (fd.name = "/etc/shadow"
+         or fd.name = "/etc/passwd"
+         or fd.name = "/etc/sudoers"
+         or fd.name glob "/etc/ssh/*"
+         or fd.name glob "/root/.ssh/*")
+  output: >
+    Sensitive file read in SecureFlow container
+    (user=%user.name
+    container=%container.name
+    image=%container.image.repository
+    file=%fd.name
+    cmdline=%proc.cmdline)
+  priority: CRITICAL
+  tags: [secureflow, sensitive-file, T1083]
+
+- rule: Package Manager Executed in SecureFlow Container
+  desc: >
+    A package manager was executed inside a SecureFlow container.
+    This may indicate an attacker installing tools post-exploitation.
+  condition: >
+    spawned_process
+    and container
+    and container.image.repository contains "secureflow"
+    and proc.name in (package_mgmt_binaries)
+  output: >
+    Package manager executed in SecureFlow container
+    (user=%user.name
+    container=%container.name
+    image=%container.image.repository
+    command=%proc.cmdline)
+  priority: ERROR
+  tags: [secureflow, package-manager, T1072]
+
+- rule: Unexpected Outbound Connection from SecureFlow Container
+  desc: >
+    A SecureFlow container established an outbound network connection.
+    Monitors for potential reverse shells or data exfiltration.
+  condition: >
+    outbound
+    and container
+    and container.image.repository contains "secureflow"
+    and not fd.sport in (53, 443, 80, 5001, 5002, 5432, 8200)
+    and not proc.name in ("python3", "vault-agent", "vault")
+  output: >
+    Outbound connection from SecureFlow container
+    (user=%user.name
+    container=%container.name
+    image=%container.image.repository
+    connection=%fd.name
+    sport=%fd.sport
+    cmdline=%proc.cmdline)
+  priority: WARNING
+  tags: [secureflow, network, T1071]
+
+
+- rule: Vault Secrets Accessed by Unexpected Process
+  desc: >
+    A process other than the expected application accessed
+    the Vault secrets file. May indicate credential theft.
+  condition: >
+    open_read
+    and container
+    and container.image.repository contains "secureflow"
+    and fd.name startswith "/vault/secrets/"
+    and not proc.name in ("python3", "vault", "sh")
+  output: >
+    Vault secrets accessed by unexpected process
+    (user=%user.name
+    container=%container.name
+    proc=%proc.name
+    file=%fd.name
+    cmdline=%proc.cmdline)
+  priority: CRITICAL
+  tags: [secureflow, vault, T1552]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# customRules:
+#   secureflow-rules.yaml: |-
+
+#     # ----------------------------------------------------------
+#     # Rule 1 — Shell spawned inside a container
+#     # Detects: kubectl exec into any SecureFlow pod
+#     # Trigger: kubectl exec -it <pod> -- sh/bash/id
+#     # ----------------------------------------------------------
+#     - rule: Shell Spawned in SecureFlow Container
+#       desc: >
+#         A shell process was spawned inside a SecureFlow container.
+#         This may indicate an attacker using kubectl exec or a
+#         reverse shell from an exploited vulnerability.
+#       condition: >
+#         spawned_process
+#         and container
+#         and container.image.repository contains "secureflow"
+#         and (proc.name in (shell_binaries) or proc.name = "id"
+#              or proc.name = "whoami" or proc.name = "sh"
+#              or proc.name = "bash" or proc.name = "dash")
+#         and not proc.pname in (shell_binaries)
+#       output: >
+#         Shell spawned in SecureFlow container
+#         (user=%user.name user_uid=%user.uid
+#         container=%container.name
+#         image=%container.image.repository
+#         shell=%proc.name parent=%proc.pname
+#         cmdline=%proc.cmdline)
+#       priority: WARNING
+#       tags: [secureflow, shell, T1059]
+
+#     # ----------------------------------------------------------
+#     # Rule 2 — Sensitive file read inside container
+#     # Detects: cat /etc/shadow or /etc/passwd reads
+#     # Trigger: kubectl exec <pod> -- cat /etc/shadow
+#     # ----------------------------------------------------------
+#     - rule: Sensitive File Read in SecureFlow Container
+#       desc: >
+#         A process inside a SecureFlow container attempted to read
+#         a sensitive system file such as /etc/shadow or /etc/passwd.
+#       condition: >
+#         open_read
+#         and container
+#         and container.image.repository contains "secureflow"
+#         and (fd.name = "/etc/shadow"
+#              or fd.name = "/etc/passwd"
+#              or fd.name = "/etc/sudoers"
+#              or fd.name glob "/etc/ssh/*"
+#              or fd.name glob "/root/.ssh/*")
+#       output: >
+#         Sensitive file read in SecureFlow container
+#         (user=%user.name
+#         container=%container.name
+#         image=%container.image.repository
+#         file=%fd.name
+#         cmdline=%proc.cmdline)
+#       priority: CRITICAL
+#       tags: [secureflow, sensitive-file, T1083]
+
+#     # ----------------------------------------------------------
+#     # Rule 3 — Package manager executed inside container
+#     # Detects: apt-get install inside a running container
+#     # Trigger: kubectl exec <pod> -- apt-get install curl
+#     # ----------------------------------------------------------
+#     - rule: Package Manager Executed in SecureFlow Container
+#       desc: >
+#         A package manager (apt, apt-get, pip, npm) was executed
+#         inside a SecureFlow container. This may indicate an attacker
+#         attempting to install tools post-exploitation.
+#       condition: >
+#         spawned_process
+#         and container
+#         and container.image.repository contains "secureflow"
+#         and proc.name in (package_mgmt_binaries)
+#       output: >
+#         Package manager executed in SecureFlow container
+#         (user=%user.name
+#         container=%container.name
+#         image=%container.image.repository
+#         command=%proc.cmdline)
+#       priority: ERROR
+#       tags: [secureflow, package-manager, T1072]
+
+#     # ----------------------------------------------------------
+#     # Rule 4 — Unexpected outbound network connection
+#     # Detects: connections to IPs outside the cluster
+#     # Trigger: exploit FV-01 or curl from inside a pod
+#     # ----------------------------------------------------------
+#     - rule: Unexpected Outbound Connection from SecureFlow Container
+#       desc: >
+#         A SecureFlow container established an outbound connection
+#         to an unexpected external IP. This may indicate a reverse
+#         shell, SSRF exploitation, or data exfiltration attempt.
+#       condition: >
+#         outbound
+#         and container
+#         and container.image.repository contains "secureflow"
+#         and not (fd.sip in (rfc_1918_addresses))
+#         and not fd.sport in (53, 443, 80)
+#         and not proc.name = "python3"
+#       output: >
+#         Unexpected outbound connection from SecureFlow container
+#         (user=%user.name
+#         container=%container.name
+#         image=%container.image.repository
+#         connection=%fd.name
+#         cmdline=%proc.cmdline)
+#       priority: CRITICAL
+#       tags: [secureflow, network, T1071]
+
+#     # ----------------------------------------------------------
+#     # Rule 5 — Vault secrets file accessed by unexpected process
+#     # Detects: anything other than the app reading /vault/secrets/
+#     # ----------------------------------------------------------
+#     - rule: Vault Secrets Accessed by Unexpected Process
+#       desc: >
+#         A process other than the expected application accessed
+#         the Vault secrets file at /vault/secrets/config.
+#         May indicate credential theft attempt.
+#       condition: >
+#         open_read
+#         and container
+#         and container.image.repository contains "secureflow"
+#         and fd.name startswith "/vault/secrets/"
+#         and not proc.name in ("python3", "vault", "sh")
+#       output: >
+#         Vault secrets accessed by unexpected process
+#         (user=%user.name
+#         container=%container.name
+#         proc=%proc.name
+#         file=%fd.name
+#         cmdline=%proc.cmdline)
+#       priority: CRITICAL
+#       tags: [secureflow, vault, credential-access, T1552]

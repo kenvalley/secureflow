@@ -1,0 +1,6 @@
+
+Tue May 05 14:06:30 2026:    /etc/falco/falco.yaml | schema validation: failed for <root>: Object contains a property that could not be validated using 'properties' or 'additionalProperties' constraints: 'jsonOutput'.
+Tue May 05 14:06:30 2026:    /etc/falco/falco_rules.yaml | schema validation: ok
+Tue May 05 14:06:30 2026:    /etc/falco/rules.d/secureflow-rules.yaml | schema validation: ok
+Tue May 05 14:06:30 2026: Hostname value has been overridden via environment variable to: secureflow-worker2
+

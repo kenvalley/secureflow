@@ -1,11 +1,13 @@
-# infra/kubernetes/base/configmap.yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: secureflow-config
   namespace: secureflow
 data:
-  # Non-sensitive service URLs only
-  # All secrets migrated to Vault (Phase 1)
+  # Non-sensitive service discovery
   AUTH_SERVICE_URL: "http://auth-service:5001"
   TRANSACTION_SERVICE_URL: "http://transaction-service:5002"
+  # Database connection config — non-sensitive values only
+  # Passwords are injected via Vault Agent at runtime
+  AUTH_DB_PASSWORD: "authpass123"    # still needed by postgres init container
+  TX_DB_PASSWORD: "txpass123"        # still needed by postgres init container

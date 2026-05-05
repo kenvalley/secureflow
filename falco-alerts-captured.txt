@@ -1,0 +1,4 @@
+
+Tue May 05 14:06:30 2026:    /etc/falco/rules.d/secureflow-rules.yaml | schema validation: ok
+Tue May 05 14:06:30 2026: Hostname value has been overridden via environment variable to: secureflow-worker2
+

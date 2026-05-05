@@ -1,4 +1,5 @@
 # New version of kustomization.yaml with vault-agent-templates.yaml
+# infra/kubernetes/base/kustomization.yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
@@ -11,7 +12,8 @@ resources:
   - auth-service.yaml
   - transaction-service.yaml
   - frontend.yaml
-  - ../vault/vault-agent-templates.yaml    # ← I added this
+  - network-policies.yaml
+  - vault-agent-templates.yaml
 
 
 
