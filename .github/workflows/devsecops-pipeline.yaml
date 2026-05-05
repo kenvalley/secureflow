@@ -122,6 +122,111 @@ jobs:
 #           path: reports/trivy/trivy-report.json
 
 
+# # -----------------------------
+# # TRIVY IMAGE
+# # -----------------------------
+#   trivy-scan:
+#     runs-on: ubuntu-latest
+#     continue-on-error: true
+
+#     steps:
+#       - uses: actions/checkout@v4
+
+#       - name: Install Trivy
+#         run: |
+#           sudo apt-get update
+#           sudo apt-get install -y wget apt-transport-https gnupg lsb-release
+#           wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+#           echo deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main | \
+#             sudo tee /etc/apt/sources.list.d/trivy.list
+#           sudo apt-get update
+#           sudo apt-get install -y trivy
+
+#       - name: Build service images
+#         run: |
+#           docker build -t secureflow/auth-service:latest ./services/auth-service
+#           docker build -t secureflow/transaction-service:latest ./services/transaction-service
+#           docker build -t secureflow/frontend:latest ./services/frontend
+
+#       - name: Scan auth-service
+#         run: |
+#           mkdir -p reports/trivy
+#           trivy image \
+#             --severity CRITICAL,HIGH \
+#             --ignorefile .trivyignore \
+#             --format json \
+#             -o reports/trivy/trivy-auth-service.json \
+#             secureflow/auth-service:latest
+
+#       - name: Scan transaction-service
+#         run: |
+#           trivy image \
+#             --severity CRITICAL,HIGH \
+#             --ignorefile .trivyignore \
+#             --format json \
+#             -o reports/trivy/trivy-transaction-service.json \
+#             secureflow/transaction-service:latest
+
+#       - name: Scan frontend
+#         run: |
+#           trivy image \
+#             --severity CRITICAL,HIGH \
+#             --ignorefile .trivyignore \
+#             --format json \
+#             -o reports/trivy/trivy-frontend.json \
+#             secureflow/frontend:latest
+
+#       - name: Merge reports
+#         run: |
+#           # Combine all three into one report for the security gate
+#           jq -s '{
+#             SchemaVersion: .[0].SchemaVersion,
+#             Results: [.[].Results[]?]
+#           }' \
+#             reports/trivy/trivy-auth-service.json \
+#             reports/trivy/trivy-transaction-service.json \
+#             reports/trivy/trivy-frontend.json \
+#             > reports/trivy/trivy-report.json
+
+#       - name: Upload Trivy
+#         if: always()
+#         uses: actions/upload-artifact@v4
+#         with:
+#           name: trivy-report
+#           path: reports/trivy/trivy-report.json
+# # -----------------------------
+# # TRIVY K8s
+# # -----------------------------
+#   trivy-k8s-scan:
+#     runs-on: ubuntu-latest
+#     continue-on-error: true
+
+#     steps:
+#       - uses: actions/checkout@v4
+
+#       - name: Install Trivy
+#         run: |
+#           sudo apt-get update
+#           sudo apt-get install -y trivy
+
+#       - name: Scan K8s
+#         run: |
+#           mkdir -p reports/trivy-k8s
+#           trivy config \
+#             --severity CRITICAL,HIGH \
+#             --format json \
+#             -o reports/trivy-k8s/trivy-k8s-report.json \
+#             infra/kubernetes/
+
+#       - name: Upload K8s
+#         if: always()
+#         uses: actions/upload-artifact@v4
+#         with:
+#           name: trivy-k8s-report
+#           path: reports/trivy-k8s/trivy-k8s-report.json
+
+
+
 # -----------------------------
 # TRIVY IMAGE
 # -----------------------------
@@ -178,7 +283,6 @@ jobs:
 
       - name: Merge reports
         run: |
-          # Combine all three into one report for the security gate
           jq -s '{
             SchemaVersion: .[0].SchemaVersion,
             Results: [.[].Results[]?]
@@ -194,6 +298,7 @@ jobs:
         with:
           name: trivy-report
           path: reports/trivy/trivy-report.json
+
 # -----------------------------
 # TRIVY K8s
 # -----------------------------
@@ -214,6 +319,7 @@ jobs:
           mkdir -p reports/trivy-k8s
           trivy config \
             --severity CRITICAL,HIGH \
+            --ignorefile .trivyignore \
             --format json \
             -o reports/trivy-k8s/trivy-k8s-report.json \
             infra/kubernetes/
@@ -225,6 +331,7 @@ jobs:
           name: trivy-k8s-report
           path: reports/trivy-k8s/trivy-k8s-report.json
 
+          
 # -----------------------------
   # CHECKOV
   # -----------------------------
@@ -259,7 +366,7 @@ jobs:
           name: checkov-report
           path: reports/checkov/checkov-report.json
 
-          
+
   # -----------------------------
   # SECURITY GATE
   # -----------------------------
