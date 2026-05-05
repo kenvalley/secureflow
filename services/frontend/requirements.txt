@@ -1,7 +1,7 @@
 # new requirements.txt
 Flask==2.3.3
-Werkzeug==2.3.7
 requests==2.31.0
+Werkzeug==3.0.3
 
 
 # old requirements.txt

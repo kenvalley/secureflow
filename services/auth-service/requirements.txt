@@ -1,8 +1,8 @@
 # updated dependencies for auth-service
 Flask==2.3.3
 psycopg2-binary==2.9.9
-PyJWT==2.8.0
-Werkzeug==2.3.7
+PyJWT==2.12.0
+Werkzeug==3.0.3
 requests==2.31.0
 
 
