@@ -225,8 +225,6 @@ jobs:
           name: trivy-k8s-report
           path: reports/trivy-k8s/trivy-k8s-report.json
 
-
-
 # -----------------------------
   # CHECKOV
   # -----------------------------
@@ -237,22 +235,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Create reports directory
-        run: mkdir -p reports/checkov
-
       - name: Run Checkov
         uses: bridgecrewio/checkov-action@v12
         with:
           directory: infra/terraform/
           framework: terraform
           output_format: json
-          output_file_path: reports/checkov/checkov-report.json
+          output_file_path: reports/checkov/
           soft_fail: true
           check: CRITICAL
 
-      - name: Fix file permissions
+      - name: Rename and fix permissions
         if: always()
-        run: sudo chmod 644 reports/checkov/checkov-report.json || true
+        run: |
+          mkdir -p reports/checkov
+          sudo mv reports/checkov/results_json.json reports/checkov/checkov-report.json
+          sudo chmod 644 reports/checkov/checkov-report.json
 
       - name: Upload Checkov
         if: always()
@@ -260,8 +258,8 @@ jobs:
         with:
           name: checkov-report
           path: reports/checkov/checkov-report.json
-          
 
+          
   # -----------------------------
   # SECURITY GATE
   # -----------------------------
