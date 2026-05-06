@@ -1,0 +1,158 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: secureflow-security-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  secureflow-security-dashboard.json: |
+    {
+      "title": "SecureFlow Security Dashboard",
+      "uid": "secureflow-security",
+      "timezone": "browser",
+      "refresh": "30s",
+      "time": {"from": "now-24h", "to": "now"},
+      "panels": [
+        {
+          "id": 1,
+          "title": "Security Gate Status",
+          "type": "stat",
+          "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0},
+          "targets": [{
+            "expr": "secureflow_gate_status",
+            "legendFormat": "Gate"
+          }],
+          "options": {
+            "colorMode": "background",
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "green", "value": 1}
+              ]
+            },
+            "mappings": [
+              {"options": {"0": {"text": "FAILED"}}, "type": "value"},
+              {"options": {"1": {"text": "PASSED"}}, "type": "value"}
+            ]
+          }
+        },
+        {
+          "id": 2,
+          "title": "Gitleaks — Secret Findings Over Time",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+          "targets": [{
+            "expr": "secureflow_gitleaks_findings",
+            "legendFormat": "Secrets Found"
+          }],
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "fixed", "fixedColor": "red"},
+              "custom": {"lineWidth": 2}
+            }
+          }
+        },
+        {
+          "id": 3,
+          "title": "Trivy Image — Vulnerability Count Over Time",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+          "targets": [{
+            "expr": "secureflow_trivy_image_findings",
+            "legendFormat": "Image CVEs (HIGH+CRITICAL)"
+          }],
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "fixed", "fixedColor": "orange"},
+              "custom": {"lineWidth": 2}
+            }
+          }
+        },
+        {
+          "id": 4,
+          "title": "Trivy K8s — Misconfiguration Count Over Time",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+          "targets": [{
+            "expr": "secureflow_trivy_k8s_findings",
+            "legendFormat": "K8s Misconfigs (HIGH+CRITICAL)"
+          }],
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "fixed", "fixedColor": "yellow"},
+              "custom": {"lineWidth": 2}
+            }
+          }
+        },
+        {
+          "id": 5,
+          "title": "AppSec — SonarCloud Finding Volume Over Time",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+          "targets": [{
+            "expr": "secureflow_sonar_findings",
+            "legendFormat": "SonarCloud CRITICAL/BLOCKER"
+          }],
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "fixed", "fixedColor": "purple"},
+              "custom": {"lineWidth": 2}
+            }
+          }
+        },
+        {
+          "id": 6,
+          "title": "Falco — Alert Rate by Rule",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 20},
+          "targets": [{
+            "expr": "rate(falco_events_total[5m])",
+            "legendFormat": "{{rule}} ({{priority}})"
+          }],
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"lineWidth": 2}
+            }
+          }
+        },
+        {
+          "id": 7,
+          "title": "Pod Security Violations",
+          "type": "stat",
+          "gridPos": {"h": 4, "w": 8, "x": 12, "y": 20},
+          "targets": [
+            {
+              "expr": "count(kube_pod_container_info{namespace=\"secureflow\"}) or vector(0)",
+              "legendFormat": "Total Pods"
+            }
+          ],
+          "options": {
+            "colorMode": "value",
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 1}
+              ]
+            }
+          }
+        },
+        {
+          "id": 8,
+          "title": "Vault — Secret Access Events Over Time",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+          "targets": [{
+            "expr": "rate(falco_events_total{rule=\"Vault Secrets Accessed by Unexpected Process\"}[5m])",
+            "legendFormat": "Unexpected Vault Access"
+          }],
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "fixed", "fixedColor": "dark-red"},
+              "custom": {"lineWidth": 2}
+            }
+          }
+        }
+      ]
+    }

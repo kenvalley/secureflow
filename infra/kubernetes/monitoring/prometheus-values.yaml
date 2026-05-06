@@ -1,0 +1,199 @@
+# SecureFlow — kube-prometheus-stack values
+# Prometheus + Grafana + Alertmanager for security observability
+
+# -------------------------------------------------------------
+# Prometheus configuration
+# -------------------------------------------------------------
+prometheus:
+  prometheusSpec:
+    # Scrape interval — 30s is fine for security metrics
+    scrapeInterval: 30s
+    evaluationInterval: 30s
+
+    # Retain 15 days of metrics — SOC2 evidence window
+    retention: 15d
+
+    # Resource limits for kind
+    resources:
+      requests:
+        memory: 400Mi
+        cpu: 200m
+      limits:
+        memory: 800Mi
+        cpu: 500m
+
+    # Allow Prometheus to discover ServiceMonitors across all namespaces
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+
+    # Additional scrape configs for services without ServiceMonitors
+    additionalScrapeConfigs:
+      # Scrape Falco metrics exporter
+      - job_name: 'falco'
+        static_configs:
+          - targets: ['falco-exporter.falco.svc.cluster.local:9376']
+        metrics_path: /metrics
+        scrape_interval: 15s
+
+      # Scrape SecureFlow services health endpoints
+      - job_name: 'secureflow-auth'
+        static_configs:
+          - targets: ['auth-service.secureflow.svc.cluster.local:5001']
+        metrics_path: /health
+        scrape_interval: 30s
+
+      - job_name: 'secureflow-transaction'
+        static_configs:
+          - targets: ['transaction-service.secureflow.svc.cluster.local:5002']
+        metrics_path: /health
+        scrape_interval: 30s
+
+      - job_name: 'secureflow-frontend'
+        static_configs:
+          - targets: ['frontend.secureflow.svc.cluster.local:5000']
+        metrics_path: /health
+        scrape_interval: 30s
+
+# -------------------------------------------------------------
+# Grafana configuration
+# -------------------------------------------------------------
+grafana:
+  enabled: true
+
+  # Default admin credentials — change in production
+  adminUser: admin
+  adminPassword: secureflow-admin
+
+  resources:
+    requests:
+      memory: 128Mi
+      cpu: 100m
+    limits:
+      memory: 256Mi
+      cpu: 200m
+
+  # Persistence disabled for kind — use emptyDir
+  persistence:
+    enabled: false
+
+  # Pre-load our custom dashboards via ConfigMap
+  sidecar:
+    dashboards:
+      enabled: true
+      searchNamespace: monitoring
+      label: grafana_dashboard
+      labelValue: "1"
+
+  # Additional data sources
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      url: http://loki.monitoring.svc.cluster.local:3100
+      access: proxy
+      isDefault: false
+
+  grafana.ini:
+    server:
+      root_url: http://localhost:3000
+    auth.anonymous:
+      enabled: false
+    security:
+      allow_embedding: true
+
+# -------------------------------------------------------------
+# Alertmanager configuration
+# -------------------------------------------------------------
+alertmanager:
+  enabled: true
+
+  alertmanagerSpec:
+    resources:
+      requests:
+        memory: 64Mi
+        cpu: 50m
+      limits:
+        memory: 128Mi
+        cpu: 100m
+
+  config:
+    global:
+      resolve_timeout: 5m
+
+    route:
+      group_by: ['alertname', 'namespace']
+      group_wait: 10s
+      group_interval: 10s
+      repeat_interval: 1h
+      receiver: 'default'
+      routes:
+        # Critical security alerts — highest priority
+        - match:
+            severity: critical
+          receiver: 'security-critical'
+          group_wait: 0s
+
+        # Warning alerts — standard routing
+        - match:
+            severity: warning
+          receiver: 'security-warning'
+
+    receivers:
+      - name: 'default'
+        webhook_configs:
+          - url: 'http://alertmanager-webhook.monitoring.svc.cluster.local:5001'
+            send_resolved: true
+
+      # For portfolio/learning — log to a webhook receiver
+      - name: 'security-critical'
+        webhook_configs:
+          - url: 'http://alertmanager-webhook.monitoring.svc.cluster.local:5001/critical'
+            send_resolved: true
+
+      - name: 'security-warning'
+        webhook_configs:
+          - url: 'http://alertmanager-webhook.monitoring.svc.cluster.local:5001/warning'
+            send_resolved: true
+
+    inhibit_rules:
+      - source_match:
+          severity: 'critical'
+        target_match:
+          severity: 'warning'
+        equal: ['alertname', 'namespace']
+
+# -------------------------------------------------------------
+# Node exporter — collect host metrics from kind nodes
+# -------------------------------------------------------------
+nodeExporter:
+  enabled: true
+
+# -------------------------------------------------------------
+# kube-state-metrics — collect K8s object state metrics
+# -------------------------------------------------------------
+kubeStateMetrics:
+  enabled: true
+
+# -------------------------------------------------------------
+# Default Prometheus rules — keep K8s alerting rules
+# -------------------------------------------------------------
+defaultRules:
+  create: true
+  rules:
+    alertmanager: true
+    etcd: false        # not exposed in kind
+    configReloaders: true
+    general: true
+    k8s: true
+    kubeApiserverAvailability: true
+    kubePrometheusGeneral: true
+    kubePrometheusNodeRecording: true
+    kubernetesApps: true
+    kubernetesResources: true
+    kubernetesStorage: true
+    kubernetesSystem: true
+    node: true
+    nodeExporterAlerting: true
+    nodeExporterRecording: true
+    prometheus: true
+    prometheusOperator: true

@@ -1,0 +1,78 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: secureflow-security-alerts
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: secureflow.security
+      interval: 30s
+      rules:
+
+          # Alert when security gate fails
+        - alert: SecureFlowGateFailed
+          expr: secureflow_gate_status == 0
+          for: 1m
+          labels:
+            severity: critical
+            team: devsecops
+          annotations:
+            summary: "SecureFlow security gate is failing"
+            description: "The CI security gate has been failing for over 1 minute."
+
+          # Alert when Gitleaks finds secrets
+        - alert: SecretsDetectedInCode
+          expr: secureflow_gitleaks_findings > 0
+          for: 0m
+          labels:
+            severity: critical
+            team: devsecops
+          annotations:
+            summary: "Secrets detected in SecureFlow codebase"
+            description: "Gitleaks found {{ $value }} secret(s). Immediate remediation required."
+
+          # Alert when Trivy finds critical image vulnerabilities
+        - alert: CriticalImageVulnerability
+          expr: secureflow_trivy_image_findings > 0
+          for: 5m
+          labels:
+            severity: warning
+            team: devsecops
+          annotations:
+            summary: "Container image vulnerabilities detected"
+            description: "Trivy found {{ $value }} HIGH/CRITICAL CVE(s) in SecureFlow images."
+
+          # Alert when Falco detects shell spawning in containers
+        - alert: FalcoShellSpawnedInContainer
+          expr: increase(falco_events_total{rule="Shell Spawned in SecureFlow Container"}[5m]) > 0
+          for: 0m
+          labels:
+            severity: warning
+            team: devsecops
+          annotations:
+            summary: "Shell spawned inside SecureFlow container"
+            description: "Falco detected a shell process inside a SecureFlow container."
+
+          # Alert when Falco detects sensitive file access
+        - alert: FalcoSensitiveFileAccess
+          expr: increase(falco_events_total{rule="Sensitive File Read in SecureFlow Container"}[5m]) > 0
+          for: 0m
+          labels:
+            severity: critical
+            team: devsecops
+          annotations:
+            summary: "Sensitive file read in SecureFlow container"
+            description: "Falco detected a read of /etc/shadow or /etc/passwd inside a container."
+
+        # Alert when Falco detects unexpected Vault secret access
+        - alert: UnexpectedVaultSecretAccess
+          expr: increase(falco_events_total{rule="Vault Secrets Accessed by Unexpected Process"}[5m]) > 0
+          for: 0m
+          labels:
+            severity: critical
+            team: devsecops
+          annotations:
+            summary: "Vault secrets accessed by unexpected process"
+            description: "A process other than python3 or vault accessed /vault/secrets/ inside a container."
