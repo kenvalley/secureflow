@@ -34,19 +34,6 @@ jobs:
             --report-format=json \
             --report-path="/repo/reports/gitleaks/gitleaks-report.json" || true
 
-      # - name: Run Gitleaks (DO NOT FAIL PIPELINE)
-      #   run: |
-      #     mkdir -p reports/gitleaks
-
-      #     docker run --rm \
-      #       -v ${{ github.workspace }}:/repo \
-      #       ghcr.io/gitleaks/gitleaks:latest \
-      #       detect \
-      #       --source="/repo" \
-      #       --config="/repo/.gitleaks.toml" \
-      #       --report-format=json \
-      #       --report-path="/repo/reports/gitleaks/gitleaks-report.json" || true
-
       - name: Upload Gitleaks
         if: always()
         uses: actions/upload-artifact@v4
@@ -87,145 +74,6 @@ jobs:
         with:
           name: sonar-reports
           path: reports/sonar/sonar-report.json
-
-# # -----------------------------
-# # TRIVY IMAGE
-# # -----------------------------
-#   trivy-scan:
-#     runs-on: ubuntu-latest
-#     continue-on-error: true
-
-#     steps:
-#       - name: Install Trivy
-#         run: |
-#           sudo apt-get update
-#           sudo apt-get install -y wget apt-transport-https gnupg lsb-release
-#           wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
-#           echo deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main | sudo tee /etc/apt/sources.list.d/trivy.list
-#           sudo apt-get update
-#           sudo apt-get install -y trivy
-
-#       - name: Run Trivy Image Scan
-#         run: |
-#           mkdir -p reports/trivy
-#           trivy image \
-#             --severity CRITICAL,HIGH \
-#             --format json \
-#             -o reports/trivy/trivy-report.json \
-#             python:3.9-slim
-
-#       - name: Upload Trivy
-#         if: always()
-#         uses: actions/upload-artifact@v4
-#         with:
-#           name: trivy-report
-#           path: reports/trivy/trivy-report.json
-
-
-# # -----------------------------
-# # TRIVY IMAGE
-# # -----------------------------
-#   trivy-scan:
-#     runs-on: ubuntu-latest
-#     continue-on-error: true
-
-#     steps:
-#       - uses: actions/checkout@v4
-
-#       - name: Install Trivy
-#         run: |
-#           sudo apt-get update
-#           sudo apt-get install -y wget apt-transport-https gnupg lsb-release
-#           wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
-#           echo deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main | \
-#             sudo tee /etc/apt/sources.list.d/trivy.list
-#           sudo apt-get update
-#           sudo apt-get install -y trivy
-
-#       - name: Build service images
-#         run: |
-#           docker build -t secureflow/auth-service:latest ./services/auth-service
-#           docker build -t secureflow/transaction-service:latest ./services/transaction-service
-#           docker build -t secureflow/frontend:latest ./services/frontend
-
-#       - name: Scan auth-service
-#         run: |
-#           mkdir -p reports/trivy
-#           trivy image \
-#             --severity CRITICAL,HIGH \
-#             --ignorefile .trivyignore \
-#             --format json \
-#             -o reports/trivy/trivy-auth-service.json \
-#             secureflow/auth-service:latest
-
-#       - name: Scan transaction-service
-#         run: |
-#           trivy image \
-#             --severity CRITICAL,HIGH \
-#             --ignorefile .trivyignore \
-#             --format json \
-#             -o reports/trivy/trivy-transaction-service.json \
-#             secureflow/transaction-service:latest
-
-#       - name: Scan frontend
-#         run: |
-#           trivy image \
-#             --severity CRITICAL,HIGH \
-#             --ignorefile .trivyignore \
-#             --format json \
-#             -o reports/trivy/trivy-frontend.json \
-#             secureflow/frontend:latest
-
-#       - name: Merge reports
-#         run: |
-#           # Combine all three into one report for the security gate
-#           jq -s '{
-#             SchemaVersion: .[0].SchemaVersion,
-#             Results: [.[].Results[]?]
-#           }' \
-#             reports/trivy/trivy-auth-service.json \
-#             reports/trivy/trivy-transaction-service.json \
-#             reports/trivy/trivy-frontend.json \
-#             > reports/trivy/trivy-report.json
-
-#       - name: Upload Trivy
-#         if: always()
-#         uses: actions/upload-artifact@v4
-#         with:
-#           name: trivy-report
-#           path: reports/trivy/trivy-report.json
-# # -----------------------------
-# # TRIVY K8s
-# # -----------------------------
-#   trivy-k8s-scan:
-#     runs-on: ubuntu-latest
-#     continue-on-error: true
-
-#     steps:
-#       - uses: actions/checkout@v4
-
-#       - name: Install Trivy
-#         run: |
-#           sudo apt-get update
-#           sudo apt-get install -y trivy
-
-#       - name: Scan K8s
-#         run: |
-#           mkdir -p reports/trivy-k8s
-#           trivy config \
-#             --severity CRITICAL,HIGH \
-#             --format json \
-#             -o reports/trivy-k8s/trivy-k8s-report.json \
-#             infra/kubernetes/
-
-#       - name: Upload K8s
-#         if: always()
-#         uses: actions/upload-artifact@v4
-#         with:
-#           name: trivy-k8s-report
-#           path: reports/trivy-k8s/trivy-k8s-report.json
-
-
 
 # -----------------------------
 # TRIVY IMAGE
@@ -411,71 +259,99 @@ jobs:
           chmod +x pipeline/scripts/security-gate.sh
           bash pipeline/scripts/security-gate.sh
 
+      # - name: Push security metrics to Pushgateway
+      #   if: always()
+      #   env:
+      #     PUSHGATEWAY_URL: ${{ secrets.PUSHGATEWAY_URL }}
+      #   run: |
+      #     # Read counts from the gate script output
+      #     GITLEAKS=$(jq '. | length' reports/gitleaks-report/gitleaks-report.json 2>/dev/null || echo 0)
+      #     TRIVY=$(jq '[.Results[].Vulnerabilities[]? | select(.Severity=="CRITICAL" or .Severity=="HIGH")] | length' reports/trivy-report/trivy-report.json 2>/dev/null || echo 0)
+      #     TRIVY_K8S=$(jq '[.Results[].Misconfigurations[]? | select(.Severity=="CRITICAL" or .Severity=="HIGH")] | length' reports/trivy-k8s-report/trivy-k8s-report.json 2>/dev/null || echo 0)
+      #     CHECKOV=$(jq '.summary.failed // 0' reports/checkov-report/checkov-report.json 2>/dev/null || echo 0)
+      #     SONAR=$(jq '[.issues[] | select(.severity=="CRITICAL" or .severity=="BLOCKER")] | length' reports/sonar-reports/sonar-report.json 2>/dev/null || echo 0)
 
-  security-exception:
-    name: Security Exception Handler
-    runs-on: ubuntu-latest
+      #     # Push to Pushgateway
+      #     cat <<EOF | curl -s --data-binary @- "${PUSHGATEWAY_URL}/metrics/job/secureflow_ci/branch/${GITHUB_REF_NAME}"
+      #     # TYPE secureflow_gitleaks_findings gauge
+      #     secureflow_gitleaks_findings{branch="${GITHUB_REF_NAME}",repo="${GITHUB_REPOSITORY}"} ${GITLEAKS}
+      #     # TYPE secureflow_trivy_image_findings gauge
+      #     secureflow_trivy_image_findings{branch="${GITHUB_REF_NAME}",repo="${GITHUB_REPOSITORY}"} ${TRIVY}
+      #     # TYPE secureflow_trivy_k8s_findings gauge
+      #     secureflow_trivy_k8s_findings{branch="${GITHUB_REF_NAME}",repo="${GITHUB_REPOSITORY}"} ${TRIVY_K8S}
+      #     # TYPE secureflow_checkov_findings gauge
+      #     secureflow_checkov_findings{branch="${GITHUB_REF_NAME}",repo="${GITHUB_REPOSITORY}"} ${CHECKOV}
+      #     # TYPE secureflow_sonar_findings gauge
+      #     secureflow_sonar_findings{branch="${GITHUB_REF_NAME}",repo="${GITHUB_REPOSITORY}"} ${SONAR}
+      #     # TYPE secureflow_gate_status gauge
+      #     secureflow_gate_status{branch="${GITHUB_REF_NAME}",repo="${GITHUB_REPOSITORY}"} $([[ $((GITLEAKS + TRIVY + TRIVY_K8S + CHECKOV)) -eq 0 ]] && echo 1 || echo 0)
+      #     EOF
 
-    # if: github.event_name == 'issue_comment' && contains(github.event.comment.body, '/security-exception')
-    if: ${{ github.event_name == 'issue_comment' && contains(github.event.comment.body, '/security-exception') }}
 
-    steps:
-      - name: Extract exception data
-        id: extract
-        run: |
-          COMMENT="${{ github.event.comment.body }}"
+  # security-exception:
+  #   name: Security Exception Handler
+  #   runs-on: ubuntu-latest
 
-          echo "Comment: $COMMENT"
+  #   # if: github.event_name == 'issue_comment' && contains(github.event.comment.body, '/security-exception')
+  #   if: ${{ github.event_name == 'issue_comment' && contains(github.event.comment.body, '/security-exception') }}
 
-          REASON=$(echo "$COMMENT" | grep -oP 'reason="\K[^"]+')
-          EXPIRES=$(echo "$COMMENT" | grep -oP 'expires="\K[^"]+')
+  #   steps:
+  #     - name: Extract exception data
+  #       id: extract
+  #       run: |
+  #         COMMENT="${{ github.event.comment.body }}"
 
-          echo "reason=$REASON" >> $GITHUB_OUTPUT
-          echo "expires=$EXPIRES" >> $GITHUB_OUTPUT
+  #         echo "Comment: $COMMENT"
 
-      - name: Validate input
-        run: |
-          if [ -z "${{ steps.extract.outputs.reason }}" ]; then
-            echo "❌ Missing reason"
-            exit 1
-          fi
+  #         REASON=$(echo "$COMMENT" | grep -oP 'reason="\K[^"]+')
+  #         EXPIRES=$(echo "$COMMENT" | grep -oP 'expires="\K[^"]+')
 
-          if [ -z "${{ steps.extract.outputs.expires }}" ]; then
-            echo "❌ Missing expiry"
-            exit 1
-          fi
+  #         echo "reason=$REASON" >> $GITHUB_OUTPUT
+  #         echo "expires=$EXPIRES" >> $GITHUB_OUTPUT
 
-      - name: Create exception record
-        run: |
-          mkdir -p exception
+  #     - name: Validate input
+  #       run: |
+  #         if [ -z "${{ steps.extract.outputs.reason }}" ]; then
+  #           echo "❌ Missing reason"
+  #           exit 1
+  #         fi
 
-          cat <<EOF > exception/security-exception.json
-          {
-            "requested_by": "${{ github.actor }}",
-            "reason": "${{ steps.extract.outputs.reason }}",
-            "expires": "${{ steps.extract.outputs.expires }}",
-            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          }
-          EOF
+  #         if [ -z "${{ steps.extract.outputs.expires }}" ]; then
+  #           echo "❌ Missing expiry"
+  #           exit 1
+  #         fi
 
-      - name: Upload exception artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: security-exception
-          path: exception/security-exception.json
+  #     - name: Create exception record
+  #       run: |
+  #         mkdir -p exception
 
-      - name: Acknowledge in PR
-        run: |
-          curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            -X POST \
-            -d '{"body": "📝 Security exception request recorded. Awaiting AppSec review."}' \
-            "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments"
+  #         cat <<EOF > exception/security-exception.json
+  #         {
+  #           "requested_by": "${{ github.actor }}",
+  #           "reason": "${{ steps.extract.outputs.reason }}",
+  #           "expires": "${{ steps.extract.outputs.expires }}",
+  #           "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  #         }
+  #         EOF
 
-      - name: Add exception label
-        run: |
-          curl -s -X POST \
-            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            -d '{"labels":["security-exception-requested"]}' \
-            "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/labels"
+  #     - name: Upload exception artifact
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: security-exception
+  #         path: exception/security-exception.json
+
+  #     - name: Acknowledge in PR
+  #       run: |
+  #         curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+  #           -X POST \
+  #           -d '{"body": "📝 Security exception request recorded. Awaiting AppSec review."}' \
+  #           "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments"
+
+  #     - name: Add exception label
+  #       run: |
+  #         curl -s -X POST \
+  #           -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+  #           -H "Content-Type: application/json" \
+  #           -d '{"labels":["security-exception-requested"]}' \
+  #           "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/labels"
 

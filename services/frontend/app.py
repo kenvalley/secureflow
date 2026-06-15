@@ -21,8 +21,7 @@ app.secret_key = os.getenv("SESSION_SECRET", "REDACTED")
 AUTH_URL = os.getenv("AUTH_SERVICE_URL", "http://auth-service:5001")
 TX_URL = os.getenv("TRANSACTION_SERVICE_URL", "http://transaction-service:5002")
 
-# Commenting to test CI/CD pipeline. Remove when running locally.
-
+# Commenting to test CI/CD pipeline. Feel free to remove.
 
 LOGIN_TEMPLATE = """
 <!doctype html>

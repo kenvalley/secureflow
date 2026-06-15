@@ -79,5 +79,3 @@ volumes:
   auth-db-data:
   transaction-db-data:
 
-# IV-06 — no `deploy.resources.limits` on any service.
-# IV-07 — no user-defined network isolation; everything on the default bridge.

@@ -6,10 +6,14 @@ driver:
 
 # Enable Falco
 falco:
+  # Re-enable gRPC for falco-exporter communication
   grpc:
-    enabled: false  # Disable gRPC output to avoid issues with WSL2 and simplify setup
-  # grpcOutput:
-  #   enabled: true
+    enabled: true
+    bindAddress: "unix:///var/run/falco/falco.sock"
+    threadiness: 8
+
+  grpcOutput:
+    enabled: true
 
   # Log to stdout so we can capture with kubectl logs
   jsonOutput: true

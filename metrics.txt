@@ -1,0 +1,6 @@
+secureflow_gate_status{branch="devsecops-kenn",repo="secureflow"} 1
+secureflow_gitleaks_findings{branch="devsecops-kenn",repo="secureflow"} 0
+secureflow_trivy_image_findings{branch="devsecops-kenn",repo="secureflow"} 0
+secureflow_trivy_k8s_findings{branch="devsecops-kenn",repo="secureflow"} 0
+secureflow_checkov_findings{branch="devsecops-kenn",repo="secureflow"} 0
+secureflow_sonar_findings{branch="devsecops-kenn",repo="secureflow"} 4

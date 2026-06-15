@@ -101,6 +101,14 @@ output "cluster_endpoint" {
 
 
 
+
+
+
+
+
+
+
+
 # SecureFlow Terraform — INTENTIONALLY VULNERABLE EKS module.
 # Planted vulnerabilities are tagged with their Vulnerability Index ID.
 

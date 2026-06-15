@@ -15,10 +15,11 @@ cosign.pub
 # Added to .gitignore
 @"
 
-# Scan reports — never commit, contain secret-shaped strings
-reports/
+# Scan reports - never commit, contain secret-shaped strings
+# reports/
 evidence/
 trivy-report.json
+test-gitleaks-report.json
 gitleaks-report.json
 *.report.json
 "@ | Add-Content .gitignore
