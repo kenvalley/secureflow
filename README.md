@@ -1131,9 +1131,7 @@ Full troubleshooting documentation covering 23 documented issues is at [`README-
 | `README-troubleshooting.md` | 23 documented issues with root cause and resolution |
 
 ---
-
-*Repository: secureflow*  
-*Implementation branch: devsecops-kenn*  
+ 
 *Author: Kenneth Ikeagu*
 ---
 *Contact: kenvalleytech@gmail.com*
